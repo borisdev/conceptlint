@@ -206,7 +206,25 @@ def main(argv: list[str] | None = None) -> int:
                    help="directory or file to check (default: cwd)")
     p.add_argument("--since", default="HEAD~20",
                    help="revision to compare against for drift (default: HEAD~20)")
+    p.add_argument("--install-rule", action="store_true",
+                   help="write the agent rule to ~/.claude/rules/ and exit")
+    p.add_argument("--uninstall-rule", action="store_true", help="remove it and exit")
     args = p.parse_args(argv)
+
+    if args.install_rule or args.uninstall_rule:
+        from conceptlint.integrations import claude_code
+        if args.install_rule:
+            print(f"wrote {claude_code.install()}")
+            print("Claude Code reads rules at the START of a session — open a new one.")
+        else:
+            print("removed" if claude_code.uninstall() else "nothing to remove")
+        return 0
+
+    # ⚠️ A path that does not exist must not read as "your code is clean". Silence is the pass, so
+    # anything that makes the tool silent for the WRONG reason is worse than an error.
+    if not args.path.exists():
+        print(f"no such path: {args.path}", file=sys.stderr)
+        return 2
 
     import importlib
     for m in args.modules:

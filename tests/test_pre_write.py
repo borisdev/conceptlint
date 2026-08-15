@@ -85,3 +85,31 @@ def test_it_fails_open_on_an_unreadable_repo(tmp_path: pathlib.Path) -> None:
     msg = review("from pydantic import BaseModel\n\nclass X(BaseModel):\n    a: str\n",
                  tmp_path / "does-not-exist", path="x.py")
     assert msg is None or "X" in msg
+
+
+# ── CLI guards ────────────────────────────────────────────────────────────────────────────────────
+
+def test_a_path_that_does_not_exist_is_an_error_not_silence(tmp_path: pathlib.Path) -> None:
+    """Silence is the pass, so anything that makes the tool silent for the WRONG reason is worse
+    than an error. `conceptlint install-rule` was parsed as a PATH, found nothing, and exited 0 —
+    reading exactly like a clean repo."""
+    from conceptlint.core.lint import main
+    assert main([str(tmp_path / "nope")]) == 2
+
+
+def test_the_agent_rule_installs_and_uninstalls(tmp_path: pathlib.Path) -> None:
+    from conceptlint.integrations import claude_code
+    rule = tmp_path / "domain-language.md"
+    assert claude_code.install(rule) == rule
+    assert "Speak the same words in prose as in code" in rule.read_text(encoding="utf-8")
+    assert claude_code.uninstall(rule) is True
+    assert claude_code.uninstall(rule) is False
+
+
+def test_the_rule_names_the_words_that_actually_drifted() -> None:
+    """`workflow` and `dataflow` are in it by name, because that is the pair that drifted for a
+    week without anything noticing."""
+    text = (pathlib.Path(__file__).resolve().parents[1]
+            / "conceptlint" / "integrations" / "agent_rule.md").read_text(encoding="utf-8")
+    for word in ("workflow", "dataflow", "activity", "step"):
+        assert word in text
