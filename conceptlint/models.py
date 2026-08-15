@@ -78,6 +78,27 @@ class ModelRecord(BaseModel):
     file: str
     line: int
 
+    #: External grounding, e.g. "http://purl.org/net/p-plan#Step". OPTIONAL, and read off the class
+    #: if it happens to be there — no base class, no import, nothing to adopt. Present means the
+    #: meaning is anchored outside this repo and is not ours to drift.
+    ontology_iri: str = ""
+
+    #: Words that mean this concept but are NOT its name, including retired ones. OPTIONAL.
+    #:
+    #: This is the only field a developer might hand-write, and it earns that by doing something
+    #: extraction cannot: a dead word stays dead only if someone records that it died. Everything
+    #: else here is read from the class.
+    also_known_as: tuple[str, ...] = ()
+
+    def terms(self) -> set[str]:
+        """Every string that could refer to this model, lowercased.
+
+        The name and its aliases — NOT the head nouns. `InterventionProtocol` should not claim the
+        word "protocol": that is the near-duplicate check's business, and folding it in here would
+        make every compound name collide with its own parts.
+        """
+        return {self.name.lower(), *(a.lower() for a in self.also_known_as)}
+
     def shares_a_head_noun_with(self, other: ModelRecord) -> set[str]:
         return words(self.name) & words(other.name)
 
@@ -109,6 +130,37 @@ class ModelRecord(BaseModel):
         return len(a & b) / len(a | b)
 
 
+#: The two class attributes a developer may hand-write. Both optional, both read by AST, neither
+#: requiring an import — which is the whole point: enrichment must never become a base class.
+_ENRICHMENT = ("ONTOLOGY_IRI", "ALSO_KNOWN_AS")
+
+
+def _enrichment(node: ast.ClassDef) -> dict[str, object]:
+    """`ONTOLOGY_IRI` / `ALSO_KNOWN_AS` assigned at class level, if present.
+
+    Handles both `X = ...` and `X: ClassVar[...] = ...`, because a codebase that annotates will
+    annotate these too, and silently skipping the annotated form would mean the enrichment works
+    only for people who do not use type hints.
+    """
+    out: dict[str, object] = {}
+    for stmt in node.body:
+        if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            targets, value = [stmt.target.id], stmt.value
+        elif isinstance(stmt, ast.Assign):
+            targets = [t.id for t in stmt.targets if isinstance(t, ast.Name)]
+            value = stmt.value
+        else:
+            continue
+        for name in targets:
+            if name not in _ENRICHMENT or value is None:
+                continue
+            try:
+                out[name] = ast.literal_eval(value)
+            except (ValueError, SyntaxError):
+                pass          # a computed value cannot be read off disk; absent beats guessed
+    return out
+
+
 def discover_models(root: pathlib.Path) -> list[ModelRecord]:
     """Every Pydantic model under `root`, read from source. Never imported.
 
@@ -132,15 +184,22 @@ def discover_models(root: pathlib.Path) -> list[ModelRecord]:
                 continue
             bases = tuple(b.id for b in node.bases if isinstance(b, ast.Name))
             bases += tuple(b.attr for b in node.bases if isinstance(b, ast.Attribute))
+            enrich = _enrichment(node)
             # A class inheriting a model IS a model — that is how a project's own base is followed.
-            if not (set(bases) & MODEL_BASES or set(bases) & set(found)):
+            #
+            # A class that carries ONTOLOGY_IRI or ALSO_KNOWN_AS is one too, whatever it inherits.
+            # That is what lets a curated vocabulary and a user's plain Pydantic land in the SAME IR
+            # without the user importing anything: the enrichment marks intent, not the base class.
+            if not (set(bases) & MODEL_BASES or set(bases) & set(found) or enrich):
                 continue
             fields = tuple(
                 t.id for s in node.body if isinstance(s, ast.AnnAssign)
                 for t in [s.target] if isinstance(t, ast.Name) and not t.id.isupper())
             rec = ModelRecord(
                 name=node.name, docstring=ast.get_docstring(node) or "",
-                fields=fields, bases=bases, file=rel, line=node.lineno)
+                fields=fields, bases=bases, file=rel, line=node.lineno,
+                ontology_iri=enrich.get("ONTOLOGY_IRI", ""),
+                also_known_as=tuple(enrich.get("ALSO_KNOWN_AS", ())))
             found[node.name] = rec
             every.append(rec)
     return every
@@ -263,9 +322,10 @@ def overloaded(models: Sequence[ModelRecord]) -> Iterable[tuple[ModelRecord, Mod
     ⚠️ Same name and the SAME shape is not reported here. That is a duplicate, and `near_duplicates`
     already covers it; reporting both would make one mistake produce two findings.
     """
-    by_name: dict[str, list[ModelRecord]] = {}
+    by_name_only: dict[str, list[ModelRecord]] = {}
     for m in models:
-        by_name.setdefault(m.name, []).append(m)
+        by_name_only.setdefault(m.name, []).append(m)
+    by_name = by_name_only
 
     for name, group in sorted(by_name.items()):
         if len(group) < 2:
@@ -279,3 +339,65 @@ def overloaded(models: Sequence[ModelRecord]) -> Iterable[tuple[ModelRecord, Mod
                 if _overlap(set(a.fields), set(b.fields)) >= 0.8:
                     continue          # same name, same shape: a duplicate, not an overload
                 yield (a, b)
+
+
+def overloaded_terms(models: Sequence[ModelRecord]) -> dict[str, list[ModelRecord]]:
+    """Words that could mean more than one model — the overload that lives in a SENTENCE.
+
+    Boris, 2026-08-15: *"overloaded is never code ... its you and I talking."*
+
+    Mostly right, and the exception is instructive. `overloaded()` above finds a name declared twice
+    in two files, and on nobsmed that is 15 real hits — so it is not never. But it is the CHEAP
+    half. The expensive half is a word that means two things in conversation, because there is no
+    file to read: the ambiguity exists between two people and gets resolved, wrongly, in silence.
+
+    `.claude/rules/domain-language.md` already names the trigger — *"when a conversation repeatedly
+    needs 'by X here I mean…', that is a missing type"* — and then says no tool can check it. This
+    is the index that lets one try:
+
+        {"workflow": [Plan], "step": [Step, BuildStep], "run": [Activity, EvalRun, BuildRun]}
+
+    A term maps to a model by its NAME or by a recorded alias. Nothing here is inferred: an alias is
+    written down by a person deciding a word is retired or synonymous, which is the one thing
+    extraction cannot do and the reason `ALSO_KNOWN_AS` survives.
+
+    ⚠️ Returns EVERY term with two or more claimants, including the harmless ones. Deciding which
+    are worth interrupting a human over is the caller's job and a different question — a checker
+    that pre-filters here would hide the data needed to tune it.
+    """
+    # ⚠️ Versioned copies are excluded, exactly as in `overloaded()`. `Finding` in `versions/v3_0/`
+    # and `versions/v4_0/` is one word with one meaning at two points in time — the namespace
+    # already says which — and counting them turns "which Finding do you mean" into a question with
+    # a boring answer, asked constantly. Measured before adding this: `protocol` looked 5-ways
+    # ambiguous, and 3 of the 5 were versions of each other.
+    live = [m for m in models if not _versioned(m)]
+    index = _term_index(live)
+    # ⚠️ Distinct DECLARATION SITES, not distinct names. Keying on the name discarded the commonest
+    # real case: `Finding` declared in two files is two models one word maps to, which is precisely
+    # the ambiguity — and measuring it wrongly reported 0 overloaded terms on a codebase where
+    # `overloaded()` finds fifteen.
+    return {t: ms for t, ms in sorted(index.items())
+            if len({(m.name, m.file, m.line) for m in ms}) > 1}
+
+
+def _term_index(models: Sequence[ModelRecord]) -> dict[str, list[ModelRecord]]:
+    index: dict[str, list[ModelRecord]] = {}
+    for m in models:
+        for term in m.terms():
+            index.setdefault(term, []).append(m)
+    return index
+
+
+def claimed_by(models: Sequence[ModelRecord], phrase: str) -> dict[str, list[ModelRecord]]:
+    """Which words in `phrase` are terms this codebase has already spoken for.
+
+    The conversational half of the linter. Given a sentence, report each word that names a model —
+    or an alias of one — so a human can be asked which they meant BEFORE anything is written.
+
+    Single-claimant hits matter as much as ambiguous ones, and for the opposite reason: writing
+    *workflow* when `Plan` records it as a retired alias is not ambiguity, it is using a dead word,
+    and it has exactly one right answer.
+    """
+    index = _term_index(models)
+    spoken = {w for w in re.findall(r"[A-Za-z_]+", phrase.lower()) if len(w) > 2}
+    return {w: index[w] for w in sorted(spoken) if w in index}

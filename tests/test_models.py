@@ -405,3 +405,80 @@ def test_a_shared_definition_without_a_shared_noun_is_not_enough(tmp_path: pathl
             two: str
     ''')
     assert _pairs(root) == []
+
+
+# --- the overload that lives in a SENTENCE -------------------------------------------------------
+
+
+def test_a_term_claimed_by_two_declarations_is_overloaded(tmp_path: pathlib.Path) -> None:
+    """Two `Finding` classes means the WORD "finding" has two referents.
+
+    The first version of this counted distinct NAMES, so two classes both called `Finding` deduped
+    to one and it reported nothing — on a codebase where the code-level check finds fifteen.
+    """
+    from conceptlint.models import overloaded_terms
+    (tmp_path / "a.py").write_text(textwrap.dedent('''
+        from pydantic import BaseModel
+        class Finding(BaseModel):
+            """A measured result."""
+            claim: str
+    '''), encoding="utf-8")
+    (tmp_path / "b.py").write_text(textwrap.dedent('''
+        from pydantic import BaseModel
+        class Finding(BaseModel):
+            """Something a reviewer noticed."""
+            note: str
+    '''), encoding="utf-8")
+    assert "finding" in overloaded_terms(discover_models(tmp_path))
+
+
+def test_versioned_copies_are_not_an_overloaded_term(tmp_path: pathlib.Path) -> None:
+    """`versions/v3_0/Finding` and `versions/v4_0/Finding` are one meaning at two times.
+
+    The PASS twin. Before this filter, `protocol` on nobsmed looked five-ways ambiguous and three
+    of the five were versions of each other — a question with a boring answer, asked constantly.
+    """
+    from conceptlint.models import overloaded_terms
+    for v in ("v3_0", "v4_0"):
+        d = tmp_path / "versions" / v
+        d.mkdir(parents=True)
+        (d / "m.py").write_text(textwrap.dedent(f'''
+            from pydantic import BaseModel
+            class Finding(BaseModel):
+                """A measured result, {v}."""
+                claim: str
+        '''), encoding="utf-8")
+    assert overloaded_terms(discover_models(tmp_path)) == {}
+
+
+def test_a_retired_word_is_reported_even_though_it_is_unambiguous(tmp_path: pathlib.Path) -> None:
+    """The case that actually bites: one right answer, and the wrong word was used anyway.
+
+    Boris's standing complaint is me writing "workflow" when the type is `Plan`. That is not
+    ambiguity — nothing competes for it — so a check that only reported multi-claimant terms would
+    stay silent on the exact failure it was built for.
+    """
+    from conceptlint.models import claimed_by
+    (tmp_path / "m.py").write_text(textwrap.dedent('''
+        from pydantic import BaseModel
+        class Plan(BaseModel):
+            """An ordered set of steps, defined before anything runs."""
+            ALSO_KNOWN_AS = ("Workflow", "Pipeline")
+            steps: tuple
+    '''), encoding="utf-8")
+    hits = claimed_by(discover_models(tmp_path), "I will add a stage to the workflow")
+    assert "workflow" in hits
+    assert [m.name for m in hits["workflow"]] == ["Plan"]
+
+
+def test_enrichment_needs_no_base_class(tmp_path: pathlib.Path) -> None:
+    """`ALSO_KNOWN_AS` is read off a plain class. Requiring a base would be the tax we refuse."""
+    (tmp_path / "m.py").write_text(textwrap.dedent('''
+        class Activity:
+            """What actually happened when a Step ran."""
+            ONTOLOGY_IRI = "http://www.w3.org/ns/prov#Activity"
+            ALSO_KNOWN_AS = ("StepRun", "TaskInstance")
+    '''), encoding="utf-8")
+    found = {m.name: m for m in discover_models(tmp_path)}
+    assert found["Activity"].also_known_as == ("StepRun", "TaskInstance")
+    assert found["Activity"].ontology_iri.endswith("#Activity")
