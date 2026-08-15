@@ -55,6 +55,24 @@ class ClinicalFinding(Finding):
 
 Python's own inheritance *is* the declaration. Nothing further is asked of you.
 
+## Drift is read from git
+
+The other two are visible in one snapshot. Drift is not — it is a claim about two points in time.
+A docstring is a promise; the fields are what the model actually is:
+
+```
+docstring changed, fields changed    evolution — they decided, and said so    silent
+docstring changed, fields same       a rewording                              silent
+docstring same,    fields same       nothing happened                         silent
+docstring same,    fields CHANGED    the promise no longer describes it       FLAG
+```
+
+```bash
+conceptlint . --since HEAD~20
+```
+
+Silent with no git history: "cannot tell" is not a finding.
+
 ## Two signals, both required
 
 A shared head noun **and** overlapping fields. Either alone is noise: `UserRequest` and

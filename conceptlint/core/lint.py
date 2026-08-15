@@ -204,6 +204,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--list", action="store_true", help="show the declared vocabulary and exit")
     p.add_argument("path", nargs="?", default=".", type=pathlib.Path,
                    help="directory or file to check (default: cwd)")
+    p.add_argument("--since", default="HEAD~20",
+                   help="revision to compare against for drift (default: HEAD~20)")
     args = p.parse_args(argv)
 
     import importlib
@@ -235,6 +237,17 @@ def main(argv: list[str] | None = None) -> int:
              f"{second.name} ({second.file}:{second.line})"],
             "the same concept, an explicit subtype, or intentionally distinct? "
             "consolidate, inherit, or make the difference visible in the fields"))
+
+    # Drift needs two points in time, so it reads git rather than the working tree. Silent when
+    # there is no history to compare against — "cannot tell" is not a finding.
+    from conceptlint.drift import drifted
+    for d in drifted(args.path, since=args.since):
+        issues.append(ConceptIssue(
+            "drift",
+            f"{d.name} changed shape while its docstring stayed the same",
+            [f"{d.name} ({d.file}:{d.line})"],
+            "update the docstring if the meaning changed, or move the new fields to the "
+            "concept they belong to"))
 
     if not issues:
         return 0                       # silence is the pass

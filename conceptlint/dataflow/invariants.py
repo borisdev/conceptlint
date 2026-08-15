@@ -70,7 +70,15 @@ class PlanTimeOnly(Invariant):
 
 
 class NoExecutionFields(Invariant):
-    """A plan-time type must not carry fields that only a run can have."""
+    """A plan-time type must not carry fields that only a run can have.
+
+    ⚠️ NARROW, and it is not "the drift check". It knows a hardcoded list of runtime-sounding field
+    names, which works only for the plan-time vocabulary this package declares — `value` is
+    suspicious on a `Variable` and unremarkable on a config. General drift is `conceptlint.drift`,
+    which compares two points in git history instead of guessing which fields look runtime.
+
+    Kept because it needs no history, and because on THESE names the list is justified.
+    """
 
     ID = "no-execution-fields"
     LAW = "one-concept-one-meaning"
