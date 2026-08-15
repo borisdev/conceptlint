@@ -1,13 +1,62 @@
 # ConceptLint
 
-**Keeps human–agent development semantically precise, so coherent domain type systems can be built
-without semantic drift.**
+**Semantic linting for Pydantic domain models.**
 
-Coding agents are good at writing code and enthusiastic about inventing vocabulary. Ask one to add a
-pipeline node and it writes `DataFlowNode` — beside the `Step` you already have. Ask it to record a
-run and it puts timestamps on the plan-time type. Both compile. Both pass review.
+Catch near-duplicate, overloaded and drifting concepts before coding agents bake them into your type
+system.
 
-ConceptLint declares the terms that matter and checks that they keep meaning one thing.
+> *"Claude keeps inventing abstractions instead of reusing the ones we already have."*
+
+Agent-generated code compiles. Tests pass. Types validate. And the domain model quietly stops
+meaning one thing.
+
+## 30 seconds
+
+You have this:
+
+```python
+class Finding(BaseModel):
+    """A proposition extracted from a source."""
+    text: str
+    source_id: str
+```
+
+An agent adds this:
+
+```python
+class ResearchFinding(BaseModel):
+    """A proposition extracted from a research source."""
+    text: str
+    source_id: str
+```
+
+```console
+$ conceptlint .
+near-duplicate-model: Finding and ResearchFinding share a head noun and 100% of their fields
+  concepts : Finding (models.py:4), ResearchFinding (models.py:10)
+  need     : the same concept, an explicit subtype, or intentionally distinct?
+             consolidate, inherit, or make the difference visible in the fields
+```
+
+**No new base classes. No schema language. No second ontology to maintain.** Ordinary Pydantic stays
+the source of truth — ConceptLint reads the names, docstrings, fields and inheritance already there.
+
+Make the relationship explicit and it goes quiet:
+
+```python
+class ClinicalFinding(Finding):
+    """A finding about one patient's care."""
+    patient_id: str
+```
+
+Python's own inheritance *is* the declaration. Nothing further is asked of you.
+
+## Two signals, both required
+
+A shared head noun **and** overlapping fields. Either alone is noise: `UserRequest` and
+`SearchRequest` share a noun and are properly distinct; two unrelated models both carrying `text` is
+coincidence. Boilerplate fields (`id`, `name`, `created_at`) are ignored — half the models in any
+repo have them.
 
 ## The two laws
 

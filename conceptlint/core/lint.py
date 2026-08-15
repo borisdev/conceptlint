@@ -202,14 +202,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--import", dest="modules", action="append", default=[],
                    help="module to import so its Concepts register (repeatable)")
     p.add_argument("--list", action="store_true", help="show the declared vocabulary and exit")
-    a = p.parse_args(argv)
+    p.add_argument("path", nargs="?", default=".", type=pathlib.Path,
+                   help="directory or file to check (default: cwd)")
+    args = p.parse_args(argv)
 
     import importlib
-    for m in a.modules:
+    for m in args.modules:
         importlib.import_module(m)
 
     concepts = declared()
-    if a.list:
+    if args.list:
         for c in concepts:
             grounded = f"  <{c.ONTOLOGY_IRI}>" if c.ONTOLOGY_IRI else ""
             refines = f"  refines {c.REFINES.__name__}" if c.REFINES else ""
@@ -218,6 +220,22 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     issues = lint(concepts)
+
+    # Ordinary Pydantic models — no base class required. This is the DEFAULT surface: every repo
+    # has models long before it has declared Concepts, and requiring declarations first is the
+    # "annotate your whole codebase" tax nobody pays.
+    from conceptlint.models import discover_models, near_duplicates
+
+    for first, second, overlap in near_duplicates(discover_models(args.path)):
+        issues.append(ConceptIssue(
+            "near-duplicate-model",
+            f"{first.name} and {second.name} share a head noun and "
+            f"{overlap:.0%} of their fields",
+            [f"{first.name} ({first.file}:{first.line})",
+             f"{second.name} ({second.file}:{second.line})"],
+            "the same concept, an explicit subtype, or intentionally distinct? "
+            "consolidate, inherit, or make the difference visible in the fields"))
+
     if not issues:
         return 0                       # silence is the pass
     for i in issues:
