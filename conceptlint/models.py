@@ -41,6 +41,14 @@ _WORD = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
 COMMON_FIELDS = frozenset({"id", "name", "type", "kind", "created_at", "updated_at", "metadata"})
 
 
+def _overlap(a: set[str], b: set[str]) -> float:
+    """Jaccard, minus the field names too common anywhere to carry meaning."""
+    a, b = a - COMMON_FIELDS, b - COMMON_FIELDS
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
 def words(name: str) -> set[str]:
     return {w.lower() for w in _WORD.findall(name) if len(w) > 2}
 
@@ -62,11 +70,7 @@ class ModelRecord(BaseModel):
 
     def field_overlap(self, other: ModelRecord) -> float:
         """Jaccard over field names, ignoring fields too common to mean anything."""
-        a = set(self.fields) - COMMON_FIELDS
-        b = set(other.fields) - COMMON_FIELDS
-        if not a or not b:
-            return 0.0
-        return len(a & b) / len(a | b)
+        return _overlap(set(self.fields), set(other.fields))
 
 
 def discover_models(root: pathlib.Path) -> list[ModelRecord]:
@@ -121,6 +125,20 @@ def _related(a: ModelRecord, b: ModelRecord, index: dict[str, ModelRecord]) -> b
     return b.name in ancestry(a) or a.name in ancestry(b)
 
 
+def _ancestor_fields(m: ModelRecord, index: dict[str, ModelRecord]) -> set[str]:
+    """Fields a model gets from its bases rather than declares itself."""
+    out: set[str] = set()
+    stack, seen = list(m.bases), set()
+    while stack:
+        b = stack.pop()
+        if b in seen or b not in index:
+            continue
+        seen.add(b)
+        out |= set(index[b].fields)
+        stack.extend(index[b].bases)
+    return out
+
+
 def near_duplicates(models: Sequence[ModelRecord],
                     threshold: float = 0.6) -> Iterable[tuple[ModelRecord, ModelRecord, float]]:
     """Pairs that look like one concept wearing two names.
@@ -140,7 +158,12 @@ def near_duplicates(models: Sequence[ModelRecord],
                 continue
             if not a.shares_a_head_noun_with(b):
                 continue
-            overlap = a.field_overlap(b)
+            # ⚠️ Fields both get from a SHARED BASE are that base's interface, not shared meaning.
+            # Found on a real codebase: two Invariant subclasses — genuinely different rules —
+            # scored 100% because `id`, `refines` and `scope` all come from Invariant. Counting
+            # them would flag every pair of siblings under any base class, forever.
+            inherited = _ancestor_fields(a, index) & _ancestor_fields(b, index)
+            overlap = _overlap(set(a.fields) - inherited, set(b.fields) - inherited)
             if overlap < threshold:
                 continue
             seen.add(key)

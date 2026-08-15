@@ -167,3 +167,48 @@ def test_unparseable_source_does_not_stop_the_scan(tmp_path: pathlib.Path) -> No
             text: str
     ''')
     assert [m.name for m in discover_models(tmp_path)] == ["Finding"]
+
+
+def test_fields_from_a_shared_base_do_not_count(tmp_path: pathlib.Path) -> None:
+    """Found on a real codebase, not imagined.
+
+    Two `Invariant` subclasses — genuinely different rules — scored 100% because `id`, `refines`
+    and `scope` all come from the base. Counting inherited fields flags every pair of siblings
+    under any base class, forever.
+    """
+    root = _write(tmp_path, '''
+        from pydantic import BaseModel
+
+        class Rule(BaseModel):
+            id: str
+            scope: list
+            refines: str
+
+        class StatusRule(Rule):
+            """A status claiming the literature must carry it."""
+
+        class BuilderRule(Rule):
+            """Out of a builder every edge is unsearched."""
+    ''')
+    assert _pairs(root) == []
+
+
+def test_a_real_duplicate_survives_the_base_discount(tmp_path: pathlib.Path) -> None:
+    """The discount must not silence a genuine collision between siblings."""
+    root = _write(tmp_path, '''
+        from pydantic import BaseModel
+
+        class Base(BaseModel):
+            id: str
+
+        class Finding(Base):
+            """A proposition extracted from a source."""
+            text: str
+            source_id: str
+
+        class ResearchFinding(Base):
+            """A proposition extracted from a research source."""
+            text: str
+            source_id: str
+    ''')
+    assert _pairs(root) == [("Finding", "ResearchFinding")]
