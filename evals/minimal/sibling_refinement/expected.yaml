@@ -1,0 +1,3 @@
+expect: flag
+rules:
+  - near-duplicate

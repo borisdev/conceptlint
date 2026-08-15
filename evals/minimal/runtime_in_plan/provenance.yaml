@@ -1,0 +1,6 @@
+source_repo: conceptlint
+commit: 668a2b8
+failure: runtime_in_plan
+notes: >
+  Section 19 lists this verbatim as a golden FLAG case. A graph that cannot tell "we parse papers"
+  from "we parsed pmid:123 at 10:04" answers neither question.

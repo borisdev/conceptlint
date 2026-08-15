@@ -1,0 +1,7 @@
+source_repo: conceptlint
+commit: 668a2b8
+failure: variable_entity_collapse
+notes: >
+  Not hypothetical. NoExecutionFields originally matched only classes SUBCLASSING a plan-time type,
+  so it was silent on Variable itself growing started_at — the exact failure the handoff describes
+  in section 15. Caught by writing the negative test, not by review.

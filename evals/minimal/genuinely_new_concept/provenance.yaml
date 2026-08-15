@@ -1,0 +1,7 @@
+source_repo: conceptlint
+commit: 668a2b8
+failure: none
+notes: >
+  A PASS-only case, deliberately. Section 19: ConceptLint MUST allow the domain vocabulary to evolve
+  when the distinction is real, and false positives matter. A corpus of only-FLAG cases would drive
+  the checks toward firing on everything.

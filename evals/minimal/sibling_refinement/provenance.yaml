@@ -1,0 +1,8 @@
+source_repo: conceptlint
+commit: 668a2b8
+failure: sibling_refinement_false_positive
+notes: >
+  The FIX is the interesting half. _related() first looked only up the ancestry chain, so two
+  concepts both refining Finding were still flagged — the documented fix did not silence the
+  finding, which is the fastest way to teach someone a linter is broken. after.py exists to keep
+  that from returning.

@@ -91,3 +91,26 @@ checkpointing, fan-out, parallelism — belong to a backend that wraps Steps fro
 Phases 1–3 of the build handoff: the semantic kernel, the ontology seed, and the typed dataflow
 core, plus one real Plan. Evals for semantic drift are next, and they come from **real** mistakes
 made while building this — not from imagined ones.
+
+## Evals
+
+Tests verify mechanics; evals verify semantic behaviour (§20). Each case holds **both directions**
+of one lesson:
+
+```
+evals/minimal/<failure>/
+    before.py         the mistake — must FLAG
+    after.py          the fix     — must PASS
+    expected.yaml     which rules before.py must trip
+    provenance.yaml   where it came from
+```
+
+`after.py` is the more valuable half: a fix that does not silence the finding is how someone learns
+to ignore a linter.
+
+```bash
+uv run python3 -m evals.runner
+```
+
+Two of the five cases are **real mistakes made while building this package**, with the commit that
+made them — not imagined failures. Per §16, that is where the corpus is supposed to come from.
