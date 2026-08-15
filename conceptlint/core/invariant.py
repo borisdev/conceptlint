@@ -58,6 +58,23 @@ class Invariant:
         raise NotImplementedError
 
 
+def validate(cls: type[Invariant]) -> None:
+    """Refuse a rule that cannot report. Split out so a test can check ONE class.
+
+    ⚠️ It was inline in `registered()`, and two tests each leaked a bad subclass into the global
+    registry — so whichever ran first decided which error the other saw. Order-dependent, and it
+    only surfaced once the suite grew. A check that passes or fails on test order is the flakiness
+    that gets a suite muted.
+    """
+    missing = [f for f in ("ID", "LAW", "WHY") if not getattr(cls, f, "")]
+    if missing:
+        raise TypeError(f"{cls.__name__} is missing {', '.join(missing)}. "
+                        f"A rule with no stated law and no stated failure is a preference.")
+    if cls.check is Invariant.check:
+        raise TypeError(f"{cls.__name__} does not implement check(). A rule that cannot run "
+                        f"reports nothing and is indistinguishable from a rule that passed.")
+
+
 def registered() -> list[Invariant]:
     """Every Invariant subclass, instantiated, in a stable order.
 
@@ -72,12 +89,6 @@ def registered() -> list[Invariant]:
         stack.extend(cls.__subclasses__())
         if cls is Invariant:
             continue
-        missing = [f for f in ("ID", "LAW", "WHY") if not getattr(cls, f, "")]
-        if missing:
-            raise TypeError(f"{cls.__name__} is missing {', '.join(missing)}. "
-                            f"A rule with no stated law and no stated failure is a preference.")
-        if cls.check is Invariant.check:
-            raise TypeError(f"{cls.__name__} does not implement check(). A rule that cannot run "
-                            f"reports nothing and is indistinguishable from a rule that passed.")
+        validate(cls)
         out.append(cls())
     return sorted(out, key=lambda i: i.ID)

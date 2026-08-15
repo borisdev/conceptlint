@@ -11,7 +11,7 @@ from typing import ClassVar
 import pytest
 
 from conceptlint.core.concept import Concept
-from conceptlint.core.invariant import ConceptIssue, Invariant, registered
+from conceptlint.core.invariant import ConceptIssue, Invariant, registered, validate
 from conceptlint.core.lint import (Ambiguity, CanonicalReuse, ExplicitRefinement, NearDuplicate,
                                    words)
 
@@ -121,13 +121,14 @@ def test_a_genuine_refinement_passes() -> None:
 
 def test_an_invariant_with_no_check_is_refused() -> None:
     """It would register, run, find nothing, and read exactly like a rule that passed."""
-    type("Hollow", (Invariant,), {"ID": "hollow", "LAW": "one-concept-one-meaning", "WHY": "w"})
+    hollow = type("Hollow", (Invariant,), {"ID": "hollow", "LAW": "one-concept-one-meaning",
+                                           "WHY": "w"})
     with pytest.raises(TypeError, match="does not implement check"):
-        registered()
+        validate(hollow)
 
 
 def test_an_invariant_with_no_stated_failure_is_refused() -> None:
-    type("Vague", (Invariant,), {"ID": "vague", "LAW": "one-concept-one-meaning",
-                                 "check": lambda self, c: []})
+    vague = type("Vague", (Invariant,), {"ID": "vague", "LAW": "one-concept-one-meaning",
+                                         "check": lambda self, c: []})
     with pytest.raises(TypeError, match="missing WHY"):
-        registered()
+        validate(vague)
