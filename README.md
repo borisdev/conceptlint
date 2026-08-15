@@ -90,25 +90,29 @@ One Meaning  →  One Canonical Concept  a meaning must not quietly acquire a se
 Neither forbids a distinction. Both forbid an **undeclared** one — every finding has a legal
 resolution that is one line of code.
 
-## Grounded, not invented
+## Run it
 
-The first vocabulary comes from [P-Plan](http://purl.org/net/p-plan#) and
-[PROV-O](https://www.w3.org/TR/prov-o/), because these nouns already have public meanings:
+Not on PyPI yet. From source:
 
+```bash
+git clone https://github.com/borisdev/conceptlint
+cd conceptlint
+uv sync
+uv run conceptlint .                  # lint the models here
+uv run conceptlint . --since HEAD~20  # include drift
 ```
-PLAN / DEFINITION TIME              EXECUTION / RUNTIME
-Plan
-  └── Step          realized as     Activity
-        └── Variable  instantiated as  Entity
-```
 
-`Step ≠ Activity`, even where an execution framework maps them one to one. That is a property of the
-framework, not of the concepts — and the moment code believes otherwise, *"the definition is wrong"*
-and *"that run failed"* become the same sentence with opposite fixes.
+`check` exits **1** on a finding and **0** in silence. There is no success message — a tool that
+congratulates you on every clean run teaches you to stop reading it.
 
-## The typed dataflow it dogfoods
+## Real-world example: a typed dataflow
 
-Not a fixture — a real package another project can depend on:
+This repository includes a small typed-dataflow package used as ConceptLint's first real
+domain-model testbed. Its vocabulary is grounded in P-Plan and PROV-O, and mistakes encountered
+while building it become ConceptLint eval cases.
+
+**It demonstrates ConceptLint preserving a coherent domain type system. It is not ConceptLint's core
+abstraction, and you do not need it.**
 
 ```python
 from conceptlint.dataflow import Plan, Step, Variable
@@ -117,50 +121,21 @@ from conceptlint.dataflow import Plan, Step, Variable
 class ParseStudyStep(Step[Study, Findings]):
     consumes = Variable("study", Study)
     produces = Variable("findings", Findings)
-
-    def run(self, value: Study) -> Findings:
-        ...
-
-
-EVIDENCE_CASE_GRAPH = Plan(
-    name="evidence_case_graph",
-    steps=(ParseStudyStep(), BuildEvidenceGraphStep()),
-)
 ```
 
-`Plan` validates at declaration: types must line up, and a runtime object in the steps is refused.
-Two Plans with the same `shape()` are substitutable — which is what makes competing builders
-comparable instead of merely looking comparable.
+Building this package exposed exactly the failures ConceptLint is meant to catch: near-duplicate
+concepts, overloaded terms, and plan-time/runtime confusion.
 
-## Run it
+One relationship is worth naming, because it is the point rather than a detail. **ConceptLint does
+not decide that `Step` is the right word.** That domain chose an ontology in which `Step` already has
+an established meaning; ConceptLint stops later code quietly changing it.
 
-```bash
-uv sync
-uv run pytest
-uv run conceptlint --import conceptlint.ontologies.pplan.concepts --list
-```
-
-## Ontology is not the type system
-
-```
-Ontology        semantic foundation      what the nouns mean
-Typed dataflow  executable contract      what the code must satisfy
-ConceptLint     semantic guardrail       that the nouns keep meaning it
-```
-
-P-Plan says what a Step *is*. `Step[InputT, OutputT]` imposes a constraint P-Plan does not. Neither
-replaces the other.
-
-## What this is not
-
-Not an RDF reasoner, not a full P-Plan or PROV-O implementation, not a workflow engine, not a
-Temporal or LangGraph wrapper, not an ontology editor. Execution concerns — retry, durability,
-checkpointing, fan-out, parallelism — belong to a backend that wraps Steps from outside.
-
+→ [`conceptlint/dataflow/README.md`](conceptlint/dataflow/README.md) for the architecture: the
+plan-time/runtime split, why `Step ≠ Activity`, the execution graph, and how an executor wraps it.
 
 ## Evals
 
-Tests verify mechanics; evals verify semantic behaviour (§20). Each case holds **both directions**
+Tests verify mechanics; evals verify semantic behaviour. Each case holds **both directions**
 of one lesson:
 
 ```
@@ -178,14 +153,18 @@ to ignore a linter.
 uv run python3 -m evals.runner
 ```
 
-Two of the five cases are **real mistakes made while building this package**, with the commit that
-made them — not imagined failures. Per §16, that is where the corpus is supposed to come from.
+Two of the five cases are **real mistakes made while building the dataflow package**, with the
+commit that made them. That is where the corpus is meant to come from — a linter proven only on
+fixtures its author invented is not proven.
 
 ## Status
 
-Phases 1–3 and 5 of the build handoff: the semantic kernel, the ontology seed, the typed dataflow
-core, one real Plan, and the eval corpus.
+Working: duplicate and overloaded detection on ordinary Pydantic models, drift against git history,
+and the `Concept` layer for vocabulary you want to declare explicitly. 73 tests, 9 eval assertions.
 
-**Not built:** the execution graph (`Activity`/`Entity` exist as concepts, not yet as classes), and
-any trial machinery for comparing arms — `check_arms()` is the one line of it that a use case
-already needed. Both wait for a real blocker, per §30.
+**Not on PyPI.** Install from source.
+
+**Evidence, stated honestly:** run against a production medical codebase — 169 Pydantic models
+across four packages — it found **one genuine duplicate**, two names with identical docstrings and
+identical fields in different files. That is a demonstration, not a study. No hit rate is claimed
+because none was measured.
