@@ -257,11 +257,15 @@ def main(argv: list[str] | None = None) -> int:
             "one name, two meanings — every import site has to know which module it "
             "came from to know what it got. Rename one, or merge them"))
 
-    for first, second, overlap in near_duplicates(found_models):
+    for first, second, score, signal in near_duplicates(found_models):
+        # Name the signal that fired. "The same fields" and "the same stated meaning" are different
+        # accusations with different fixes, and a message that blurs them sends the reader to the
+        # field list when the DOCSTRING is what says these are one concept.
+        what = (f"{score:.0%} of their fields" if signal == "fields"
+                else f"{score:.0%} of their stated meaning — {first.definition!r}")
         issues.append(ConceptIssue(
             "near-duplicate-model",
-            f"{first.name} and {second.name} share a head noun and "
-            f"{overlap:.0%} of their fields",
+            f"{first.name} and {second.name} share a head noun and {what}",
             [f"{first.name} ({first.file}:{first.line})",
              f"{second.name} ({second.file}:{second.line})"],
             "the same concept, an explicit subtype, or intentionally distinct? "

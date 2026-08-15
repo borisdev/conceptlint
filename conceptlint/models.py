@@ -40,6 +40,19 @@ _WORD = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
 #: Field names too common to carry meaning. Two models both having `id` says nothing.
 COMMON_FIELDS = frozenset({"id", "name", "type", "kind", "created_at", "updated_at", "metadata"})
 
+#: Words that appear in almost every definition sentence and so distinguish nothing. Kept short on
+#: purpose: a long stop-list starts deleting the domain nouns that carry the whole signal.
+_STOP = frozenset({
+    "a", "an", "the", "of", "for", "to", "in", "on", "and", "or", "is", "are", "was", "were", "be",
+    "it", "its", "this", "that", "these", "those", "with", "from", "by", "as", "at", "one", "we",
+})
+
+
+def _content(sentence: str) -> set[str]:
+    """The words in a definition that carry meaning, lowercased."""
+    return {w for w in re.findall(r"[A-Za-z_]+", sentence.lower())
+            if w not in _STOP and len(w) > 2}
+
 
 def _overlap(a: set[str], b: set[str]) -> float:
     """Jaccard, minus the field names too common anywhere to carry meaning."""
@@ -71,6 +84,29 @@ class ModelRecord(BaseModel):
     def field_overlap(self, other: ModelRecord) -> float:
         """Jaccard over field names, ignoring fields too common to mean anything."""
         return _overlap(set(self.fields), set(other.fields))
+
+    @property
+    def definition(self) -> str:
+        """The first sentence of the docstring — what the author says this MEANS.
+
+        A docstring's opening line is the closest thing plain Pydantic has to a declared definition,
+        which is why `Concept.DEFINITION` is not needed to read one. Everything after it is usually
+        rationale, examples, or warnings: real content, but not the claim about identity.
+        """
+        head = self.docstring.strip().split("\n\n", 1)[0]
+        return re.split(r"(?<=[.!?])\s", head.strip(), maxsplit=1)[0].strip()
+
+    def definition_overlap(self, other: ModelRecord) -> float:
+        """How much of the stated meaning is shared. 0.0 when either side states none.
+
+        ⚠️ Empty is not agreement. Two undocumented models are not two models that agree — treating
+        a blank as a match would fire on every pair in an undocumented codebase, which is the sort
+        of result that gets a checker switched off in an afternoon.
+        """
+        a, b = _content(self.definition), _content(other.definition)
+        if not a or not b:
+            return 0.0
+        return len(a & b) / len(a | b)
 
 
 def discover_models(root: pathlib.Path) -> list[ModelRecord]:
@@ -142,13 +178,36 @@ def _ancestor_fields(m: ModelRecord, index: dict[str, ModelRecord]) -> set[str]:
     return out
 
 
+#: How much of a stated definition must be shared before two models are claiming the same meaning.
+#: Higher than the field bar because prose is noisier: field names are chosen once and reused, while
+#: two authors describing the same thing rarely pick the same words unless one copied the other —
+#: which is exactly the case worth catching.
+DEFINITION_THRESHOLD = 0.8
+
+
 def near_duplicates(models: Sequence[ModelRecord],
-                    threshold: float = 0.6) -> Iterable[tuple[ModelRecord, ModelRecord, float]]:
+                    threshold: float = 0.6
+                    ) -> Iterable[tuple[ModelRecord, ModelRecord, float, str]]:
     """Pairs that look like one concept wearing two names.
 
-    BOTH signals required — a shared head noun AND overlapping fields. Either alone produces noise:
-    `UserRequest`/`SearchRequest` share a noun and are properly distinct; two unrelated models both
-    carrying `text` and `source_id` may be coincidence. Together they are worth asking about.
+    A shared head noun is required, and then EITHER corroborating signal:
+
+        fields      the shape is the same          `Finding` / `ResearchFinding`
+        definition  the stated meaning is the same `InterventionProtocol` / `Protocol`
+
+    The head noun alone is noise — `UserRequest` and `SearchRequest` share one and are properly
+    distinct. So is either corroborator alone: two unrelated models both carrying `text` and
+    `source_id` may be coincidence, and two one-line docstrings can collide by accident.
+
+    ⚠️ Fields were the only corroborator until 2026-08-15, and that made the check fragile in the
+    one direction it could not report: **rename the fields and the finding disappears**, while the
+    duplicate meaning it was reporting is untouched. Found on nobsmed, where `InterventionProtocol`
+    and `Protocol` had NINE identical fields *and* a word-for-word identical docstring — two
+    independent signals, of which only one was being read. A checker that depends on the shape
+    surviving is measuring the shape, not the concept.
+
+    Yields `(first, second, score, signal)`; `signal` names which corroborator fired, because
+    "these have the same fields" and "these claim the same meaning" want different fixes.
     """
     index = {m.name: m for m in models}
     seen: set[tuple[str, str]] = set()
@@ -167,10 +226,18 @@ def near_duplicates(models: Sequence[ModelRecord],
             # them would flag every pair of siblings under any base class, forever.
             inherited = _ancestor_fields(a, index) & _ancestor_fields(b, index)
             overlap = _overlap(set(a.fields) - inherited, set(b.fields) - inherited)
-            if overlap < threshold:
+            meaning = a.definition_overlap(b)
+
+            if overlap >= threshold:
+                score, signal = overlap, "fields"
+            elif meaning >= DEFINITION_THRESHOLD:
+                score, signal = meaning, "definition"
+            else:
                 continue
+
             seen.add(key)
-            yield (index[key[0]], index[key[1]], overlap)
+            first, second = index[key[0]], index[key[1]]
+            yield (first, second, score, signal)
 
 
 #: A directory whose whole job is to hold parallel copies of a vocabulary. Two `Finding` classes in

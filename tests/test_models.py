@@ -19,7 +19,7 @@ def _write(tmp: pathlib.Path, body: str) -> pathlib.Path:
 
 
 def _pairs(tmp: pathlib.Path) -> list[tuple[str, str]]:
-    return [(a.name, b.name) for a, b, _ in near_duplicates(discover_models(tmp))]
+    return [(a.name, b.name) for a, b, _, _ in near_duplicates(discover_models(tmp))]
 
 
 def test_no_base_class_is_required(tmp_path: pathlib.Path) -> None:
@@ -294,3 +294,114 @@ def test_discovery_keeps_repeated_names(tmp_path: pathlib.Path) -> None:
             host: str
     ''')
     assert [m.name for m in discover_models(root)] == ["Protocol", "Protocol"]
+
+
+# --- the definition signal ----------------------------------------------------------------------
+#
+# Fields were the only corroborator until 2026-08-15, which left the check fragile in exactly the
+# direction it could not report: rename the fields and the finding vanishes while the duplicated
+# MEANING is untouched. Every case below has a PASS twin, for the reason at the top of this file.
+
+
+def _signals(tmp: pathlib.Path) -> list[tuple[str, str, str]]:
+    return [(a.name, b.name, sig) for a, b, _, sig in near_duplicates(discover_models(tmp))]
+
+
+def test_the_same_stated_meaning_is_caught_when_the_fields_were_renamed(
+        tmp_path: pathlib.Path) -> None:
+    """The regression. Identical docstring, deliberately disjoint field names.
+
+    Under the old field-only rule these scored 0% and were silently a pass — the duplicate concept
+    was fully visible in the source and the checker was looking at the wrong column.
+    """
+    root = _write(tmp_path, '''
+        from pydantic import BaseModel
+
+        class TreatmentProtocol(BaseModel):
+            """A named course of treatment with its dosing schedule."""
+            protocol_label: str
+            schedule_text: str
+
+        class Protocol(BaseModel):
+            """A named course of treatment with its dosing schedule."""
+            title: str
+            regimen: str
+    ''')
+    assert ("Protocol", "TreatmentProtocol", "definition") in _signals(root)
+
+
+def test_two_undocumented_models_are_not_two_models_that_agree(tmp_path: pathlib.Path) -> None:
+    """Empty is not agreement.
+
+    The PASS twin for the test above, and the one that decides whether this ships: a blank matching
+    a blank would fire on every same-noun pair in an undocumented codebase.
+    """
+    root = _write(tmp_path, '''
+        from pydantic import BaseModel
+
+        class TreatmentProtocol(BaseModel):
+            protocol_label: str
+            schedule_text: str
+
+        class Protocol(BaseModel):
+            title: str
+            regimen: str
+    ''')
+    assert _pairs(root) == []
+
+
+def test_different_meanings_under_a_shared_noun_stay_silent(tmp_path: pathlib.Path) -> None:
+    """`UserRequest` / `SearchRequest` in definition form — the noise case."""
+    root = _write(tmp_path, '''
+        from pydantic import BaseModel
+
+        class UserRequest(BaseModel):
+            """What a person asked us to do on their behalf."""
+            actor_id: str
+            intent: str
+
+        class SearchRequest(BaseModel):
+            """Query parameters sent to the literature index."""
+            terms: str
+            limit: int
+    ''')
+    assert _pairs(root) == []
+
+
+def test_fields_still_win_when_both_signals_are_present(tmp_path: pathlib.Path) -> None:
+    """One mistake must produce ONE finding, and it should name the stronger evidence.
+
+    Shape is the more objective of the two, so it is reported when both agree.
+    """
+    root = _write(tmp_path, '''
+        from pydantic import BaseModel
+
+        class ResearchFinding(BaseModel):
+            """One measured result extracted from a paper."""
+            claim: str
+            pmid: str
+
+        class Finding(BaseModel):
+            """One measured result extracted from a paper."""
+            claim: str
+            pmid: str
+    ''')
+    sigs = _signals(root)
+    assert len(sigs) == 1, "two signals must not produce two findings for one mistake"
+    assert sigs[0][2] == "fields"
+
+
+def test_a_shared_definition_without_a_shared_noun_is_not_enough(tmp_path: pathlib.Path) -> None:
+    """The head noun stays mandatory. Prose collides; two signals or nothing."""
+    root = _write(tmp_path, '''
+        from pydantic import BaseModel
+
+        class Alpha(BaseModel):
+            """A named course of treatment with its dosing schedule."""
+            one: str
+
+        class Beta(BaseModel):
+            """A named course of treatment with its dosing schedule."""
+            two: str
+    ''')
+    assert _pairs(root) == []
