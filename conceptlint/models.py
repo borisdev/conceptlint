@@ -79,7 +79,8 @@ def discover_models(root: pathlib.Path) -> list[ModelRecord]:
     A linter that must import cannot run on the half-finished state a repo is in while someone is
     talking to an agent about it — which is exactly when a duplicate concept gets introduced.
     """
-    found: dict[str, ModelRecord] = {}
+    found: dict[str, ModelRecord] = {}      # by name, for base resolution
+    every: list[ModelRecord] = []           # every declaration, including repeated names
     files = [root] if root.is_file() else sorted(
         p for p in root.rglob("*.py") if ".venv" not in p.parts and "__pycache__" not in p.parts)
 
@@ -101,10 +102,12 @@ def discover_models(root: pathlib.Path) -> list[ModelRecord]:
             fields = tuple(
                 t.id for s in node.body if isinstance(s, ast.AnnAssign)
                 for t in [s.target] if isinstance(t, ast.Name) and not t.id.isupper())
-            found[node.name] = ModelRecord(
+            rec = ModelRecord(
                 name=node.name, docstring=ast.get_docstring(node) or "",
                 fields=fields, bases=bases, file=rel, line=node.lineno)
-    return list(found.values())
+            found[node.name] = rec
+            every.append(rec)
+    return every
 
 
 def _related(a: ModelRecord, b: ModelRecord, index: dict[str, ModelRecord]) -> bool:
@@ -168,3 +171,44 @@ def near_duplicates(models: Sequence[ModelRecord],
                 continue
             seen.add(key)
             yield (index[key[0]], index[key[1]], overlap)
+
+
+#: A directory whose whole job is to hold parallel copies of a vocabulary. Two `Finding` classes in
+#: `versions/v3_0/` and `versions/v4_0/` are not one name with two meanings — the namespace already
+#: says which is which, and flagging them means flagging versioning itself.
+#:
+#: ⚠️ Found by running on a real codebase: 19 of 20 hits were versioned IRs. A checker that fires on
+#: an intentional pattern that often does not survive first contact.
+VERSION_DIRS = frozenset({"versions", "version", "_versions", "legacy", "deprecated"})
+
+
+def _versioned(m: ModelRecord) -> bool:
+    return bool(VERSION_DIRS & set(pathlib.PurePosixPath(m.file).parts))
+
+
+def overloaded(models: Sequence[ModelRecord]) -> Iterable[tuple[ModelRecord, ModelRecord]]:
+    """One name, two meanings: the same class name declared twice with different shapes.
+
+    Requires no declarations of any kind — just two files. `Protocol` as a treatment regimen and
+    `Protocol` as a network contract is one word carrying two meanings, and every import site has to
+    know which module it came from to know what it got.
+
+    ⚠️ Same name and the SAME shape is not reported here. That is a duplicate, and `near_duplicates`
+    already covers it; reporting both would make one mistake produce two findings.
+    """
+    by_name: dict[str, list[ModelRecord]] = {}
+    for m in models:
+        by_name.setdefault(m.name, []).append(m)
+
+    for name, group in sorted(by_name.items()):
+        if len(group) < 2:
+            continue
+        for i, a in enumerate(group):
+            for b in group[i + 1:]:
+                if a.file == b.file:
+                    continue          # a redefinition in one file is a different bug
+                if _versioned(a) or _versioned(b):
+                    continue
+                if _overlap(set(a.fields), set(b.fields)) >= 0.8:
+                    continue          # same name, same shape: a duplicate, not an overload
+                yield (a, b)

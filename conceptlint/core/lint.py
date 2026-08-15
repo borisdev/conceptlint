@@ -226,9 +226,20 @@ def main(argv: list[str] | None = None) -> int:
     # Ordinary Pydantic models — no base class required. This is the DEFAULT surface: every repo
     # has models long before it has declared Concepts, and requiring declarations first is the
     # "annotate your whole codebase" tax nobody pays.
-    from conceptlint.models import discover_models, near_duplicates
+    from conceptlint.models import discover_models, near_duplicates, overloaded
 
-    for first, second, overlap in near_duplicates(discover_models(args.path)):
+    found_models = discover_models(args.path)
+
+    for first, second in overloaded(found_models):
+        issues.append(ConceptIssue(
+            "overloaded",
+            f"{first.name} is declared twice with different shapes",
+            [f"{first.name} ({first.file}:{first.line})",
+             f"{second.name} ({second.file}:{second.line})"],
+            "one name, two meanings — every import site has to know which module it "
+            "came from to know what it got. Rename one, or merge them"))
+
+    for first, second, overlap in near_duplicates(found_models):
         issues.append(ConceptIssue(
             "near-duplicate-model",
             f"{first.name} and {second.name} share a head noun and "

@@ -212,3 +212,85 @@ def test_a_real_duplicate_survives_the_base_discount(tmp_path: pathlib.Path) -> 
             source_id: str
     ''')
     assert _pairs(root) == [("Finding", "ResearchFinding")]
+
+
+# ── overloaded: one name, two meanings ────────────────────────────────────────────────────────────
+
+def _two_files(tmp: pathlib.Path, a: str, b: str) -> pathlib.Path:
+    for sub, body in (("a", a), ("b", b)):
+        (tmp / sub).mkdir()
+        (tmp / sub / "models.py").write_text(textwrap.dedent(body), encoding="utf-8")
+    return tmp
+
+
+def test_one_name_two_shapes_is_overloaded(tmp_path: pathlib.Path) -> None:
+    from conceptlint.models import overloaded
+    root = _two_files(tmp_path, '''
+        from pydantic import BaseModel
+
+        class Protocol(BaseModel):
+            """A treatment regimen."""
+            dose: str
+            route: str
+    ''', '''
+        from pydantic import BaseModel
+
+        class Protocol(BaseModel):
+            """A network communication contract."""
+            host: str
+            port: int
+    ''')
+    assert [a.name for a, _ in overloaded(discover_models(root))] == ["Protocol"]
+
+
+def test_one_name_one_shape_is_a_duplicate_not_an_overload(tmp_path: pathlib.Path) -> None:
+    """Reporting both would make one mistake produce two findings."""
+    from conceptlint.models import overloaded
+    body = '''
+        from pydantic import BaseModel
+
+        class Protocol(BaseModel):
+            """A treatment regimen."""
+            dose: str
+            route: str
+    '''
+    assert list(overloaded(discover_models(_two_files(tmp_path, body, body)))) == []
+
+
+def test_a_versioned_namespace_is_not_an_overload(tmp_path: pathlib.Path) -> None:
+    """Found on a real codebase: 19 of 20 hits were parallel versioned IRs.
+
+    `versions/v3_0/Finding` and `versions/v4_0/Finding` are not one name with two meanings — the
+    namespace already says which is which. Flagging them means flagging versioning itself, and a
+    checker that fires on an intentional pattern does not survive first contact.
+    """
+    from conceptlint.models import overloaded
+    for v in ("v3_0", "v4_0"):
+        d = tmp_path / "versions" / v
+        d.mkdir(parents=True)
+        (d / "models.py").write_text(textwrap.dedent(f'''
+            from pydantic import BaseModel
+
+            class Finding(BaseModel):
+                """A proposition."""
+                text: str
+                {"source_id: str" if v == "v3_0" else "provenance: str"}
+        '''), encoding="utf-8")
+    assert list(overloaded(discover_models(tmp_path))) == []
+
+
+def test_discovery_keeps_repeated_names(tmp_path: pathlib.Path) -> None:
+    """The index was keyed by name, so the second declaration overwrote the first — which made the
+    overloaded case structurally invisible to the tool meant to find it."""
+    root = _two_files(tmp_path, '''
+        from pydantic import BaseModel
+
+        class Protocol(BaseModel):
+            dose: str
+    ''', '''
+        from pydantic import BaseModel
+
+        class Protocol(BaseModel):
+            host: str
+    ''')
+    assert [m.name for m in discover_models(root)] == ["Protocol", "Protocol"]

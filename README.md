@@ -105,6 +105,35 @@ uv run conceptlint . --since HEAD~20  # include drift
 `check` exits **1** on a finding and **0** in silence. There is no success message — a tool that
 congratulates you on every clean run teaches you to stop reading it.
 
+## Stop it before it is written
+
+A linter reports. A hook interrupts. Install it as a `PreToolUse` hook and the agent has to answer
+before it adds a model:
+
+```json
+{"hooks": {"PreToolUse": [{"matcher": "Write|Edit",
+  "hooks": [{"type": "command", "command": "python3 -m conceptlint.integrations.pre_write"}]}]}}
+```
+
+```
+⛔ `ResearchFinding` looks like `Finding`, which already exists at models.py:4
+   A proposition extracted from a source.
+   Reuse it, or say what distinction `ResearchFinding` carries that it does not.
+```
+
+And when the model really is new:
+
+```
+❓ `RetryPolicy` is a NEW domain model. Before writing it, answer one of:
+   1. reuse    — does an existing model already mean this?
+   2. extend   — should it subclass one, so the relationship is declared?
+   3. compose  — is it two existing models together, rather than a new kind?
+   4. split    — should an existing model gain a `kind` discriminator instead?
+```
+
+**Silent unless a new model appears**, and it fails open on any error — a semantic convenience must
+never be able to block work.
+
 ## Real-world example: a typed dataflow
 
 This repository includes a small typed-dataflow package used as ConceptLint's first real
