@@ -86,11 +86,6 @@ Not an RDF reasoner, not a full P-Plan or PROV-O implementation, not a workflow 
 Temporal or LangGraph wrapper, not an ontology editor. Execution concerns — retry, durability,
 checkpointing, fan-out, parallelism — belong to a backend that wraps Steps from outside.
 
-## Status
-
-Phases 1–3 of the build handoff: the semantic kernel, the ontology seed, and the typed dataflow
-core, plus one real Plan. Evals for semantic drift are next, and they come from **real** mistakes
-made while building this — not from imagined ones.
 
 ## Evals
 
@@ -114,3 +109,12 @@ uv run python3 -m evals.runner
 
 Two of the five cases are **real mistakes made while building this package**, with the commit that
 made them — not imagined failures. Per §16, that is where the corpus is supposed to come from.
+
+## Status
+
+Phases 1–3 and 5 of the build handoff: the semantic kernel, the ontology seed, the typed dataflow
+core, one real Plan, and the eval corpus.
+
+**Not built:** the execution graph (`Activity`/`Entity` exist as concepts, not yet as classes), and
+any trial machinery for comparing arms — `check_arms()` is the one line of it that a use case
+already needed. Both wait for a real blocker, per §30.
