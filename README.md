@@ -2,8 +2,12 @@
 
 **Semantic linting for Pydantic domain models.**
 
-Catch near-duplicate, overloaded and drifting concepts before coding agents bake them into your type
-system.
+Catch duplicate, overloaded and drifting concepts before a coding agent writes your type system.
+
+- **duplicate** — two names, one meaning: `Finding` and `ResearchFinding`, same fields
+- **overloaded** — one name, two meanings: `Evidence` as a study, as support, as a citation
+- **drifting** — a name that quietly changes meaning: `Variable` grows `started_at` and a value,
+  and is now a runtime thing wearing a plan-time name
 
 > *"Claude keeps inventing abstractions instead of reusing the ones we already have."*
 
