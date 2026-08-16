@@ -1,17 +1,25 @@
 # What conceptlint finds in its OWN source. CI fails only if this rises.
 #
-# All three are the same real thing: a term declared twice, once as a P-Plan `Concept` in
-# ontologies/pplan/concepts.py and once as the Python implementation in dataflow/.
+# All four are one real thing: a term declared twice — once as a P-Plan `Concept` in
+# ontologies/pplan/concepts.py, once as the Python implementation in dataflow/.
 #
-#   Step      dataflow/step.py:23        <-> ontologies/pplan/concepts.py:40
+#   Step      dataflow/step.py:43        <-> ontologies/pplan/concepts.py:40
+#   Plan      dataflow/plan.py:49        <-> ontologies/pplan/concepts.py:28
 #   Activity  dataflow/execution.py:92   <-> ontologies/pplan/concepts.py:68
 #   Entity    dataflow/execution.py:78   <-> ontologies/pplan/concepts.py:81
 #
 # Not noise. `from conceptlint.dataflow import Step` and `from ...pplan.concepts import Step` give
-# you different objects under one name — the overload this tool exists to report, reported about
-# itself. That is the strongest evidence the check works.
+# different objects under one name — the overload this tool exists to report, reported about itself.
 #
-# Left standing on purpose: the P-Plan correction should resolve it by making concepts.py the single
-# declaration, rather than by silencing the finding. Fixing it before that lands would rename the
-# same thing twice.
-3
+# ⚠️ RAISED 3 -> 4 on 2026-08-16 by the P-Plan DAG correction, and the reason matters: `Plan` was
+# ALREADY declared in both files. It was invisible because `discover_models` only picks up classes
+# that inherit a Pydantic base OR carry enrichment — and the correction added `ONTOLOGY_IRI` to
+# `Plan`. Adding a citation is what made the pre-existing duplicate discoverable.
+#
+# So this is not a new duplicate. It is the checker seeing further, which is the outcome the
+# enrichment change was for, arriving in the least convenient form: as a number going up.
+#
+# All four should disappear together when concepts.py becomes the single declaration and dataflow/
+# references it instead of redeclaring. That is a vocabulary merge, not a rename, and it wants
+# agreeing before it is written.
+4

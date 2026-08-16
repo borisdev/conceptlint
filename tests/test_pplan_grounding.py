@@ -145,42 +145,63 @@ def test_every_ontology_iri_we_cite_exists_in_the_vendored_ontology(pplan):
         assert term in pplan, f"{iri} is cited but {term} is not in the P-Plan ontology"
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "KNOWN DIVERGENCE. P-Plan puts no cardinality on hasInputVar, but Step declares a single "
-    "`consumes: ClassVar[Variable]`. Fixing this is the DAG correction; the marker must be removed "
-    "in the same commit."))
 def test_our_step_allows_many_inputs_like_the_ontology_does():
-    from conceptlint.dataflow import Step
-    ann = getattr(Step, "__annotations__", {})
-    assert "inputs" in ann or "consumes_many" in ann, \
-        "Step models one input; P-Plan allows many"
+    """Was xfail until 2026-08-16. The marker was strict, so landing the fix forced its deletion."""
+    from conceptlint.dataflow import Step, Variable
+
+    class ThreeIn(Step):
+        inputs = (Variable("a", str), Variable("b", int), Variable("c", float))
+        outputs = (Variable("d", dict),)
+
+    assert len(ThreeIn.inputs) == 3, "P-Plan puts no cardinality on hasInputVar"
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "KNOWN DIVERGENCE. Same for hasOutputVar — Step declares one `produces`."))
 def test_our_step_allows_many_outputs_like_the_ontology_does():
-    from conceptlint.dataflow import Step
-    ann = getattr(Step, "__annotations__", {})
-    assert "outputs" in ann or "produces_many" in ann
+    from conceptlint.dataflow import Step, Variable
+
+    class TwoOut(Step):
+        inputs = (Variable("a", str),)
+        outputs = (Variable("b", int), Variable("c", float))
+
+    assert len(TwoOut.outputs) == 2, "P-Plan puts no cardinality on hasOutputVar"
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "KNOWN DIVERGENCE. Plan validates a PAIRWISE CHAIN (zip(steps, steps[1:])), a relation P-Plan "
-    "does not have. Order should be derived from Variable producer/consumer edges."))
 def test_our_plan_does_not_assume_a_linear_chain():
-    import inspect
+    """Behaviour, not source text.
 
-    from conceptlint.dataflow import plan as plan_mod
-    src = inspect.getsource(plan_mod)
-    assert "steps[1:]" not in src, "Plan chains steps pairwise; P-Plan wires them through Variables"
+    The first version grepped `inspect.getsource` for "steps[1:]" — and then FAILED after the fix,
+    because the new module docstring *describes* the old behaviour it replaced. A test that reads
+    prose cannot tell an implementation from an explanation of why it is gone.
+    """
+    from conceptlint.dataflow import Plan, Step, Variable
+
+    A, B, C, D = (Variable("a", str), Variable("b", int),
+                  Variable("c", float), Variable("d", dict))
+
+    class First(Step):                    # needs TWO inputs, so first/last cannot describe the Plan
+        inputs, outputs = (A, B), (C,)
+        def run(self, **v): return 1.0
+
+    class Second(Step):
+        inputs, outputs = (C,), (D,)
+        def run(self, **v): return {}
+
+    plan = Plan(name="fanin", steps=(First(), Second()))
+    assert {v.name for v in plan.inputs} == {"a", "b"}, \
+        "Plan inputs are the FREE variables, not steps[0].consumes"
+    assert {v.name for v in plan.outputs} == {"d"}
+
+    # And order is derived: declaring them backwards must not change the execution order.
+    backwards = Plan(name="fanin", steps=(Second(), First()))
+    assert [type(s).__name__ for s in backwards.order()] == ["First", "Second"]
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "KNOWN DIVERGENCE. p-plan:MultiStep — a Plan that appears as a Step — has no representation, "
-    "which is why a nested sub-DAG had to be faked in the renderer instead of modelled."))
 def test_we_model_multistep():
-    import conceptlint.dataflow as df
-    assert hasattr(df, "MultiStep")
+    """p-plan:MultiStep — rdfs:subClassOf both Plan and Step. Nesting is modelled, not faked."""
+    from conceptlint.dataflow import MultiStep, Plan, Step
+
+    assert issubclass(MultiStep, Plan)
+    assert hasattr(MultiStep, "decomposed_as_plan"), "p-plan:isDecomposedAsPlan"
 
 
 # --- the invariant, and the trap it fell into ----------------------------------------------------
