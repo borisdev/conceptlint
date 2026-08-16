@@ -1,284 +1,202 @@
-# ConceptLint
+# PlanTypes
 
-**Semantic linting for Pydantic domain models.**
+**From Plan Mode to Plan Types.**
 
-Catch duplicate, overloaded and drifting concepts before a coding agent writes your type system.
+Turn an agent's plan into a typed process specification — one you can validate, draw, and hold it to.
 
-- **duplicate** — two names, one meaning: `Finding` and `ResearchFinding`, same fields
-- **overloaded** — one name, two meanings: `Evidence` as a study, as support, as a citation
-- **drifting** — a name that quietly changes meaning: `Variable` grows `started_at` and a value,
-  and is now a runtime thing wearing a plan-time name
+Plan Mode says *"here's what I intend to do."* It's prose, it's gone when the conversation moves on,
+and nothing checks that the code matches it. PlanTypes makes the same intent an artifact:
 
-> *"Claude keeps inventing abstractions instead of reusing the ones we already have."*
+```
+Plan
+├── typed Steps
+├── typed Variables
+├── explicit dependencies
+├── invariants
+└── visualization
+```
 
-Agent-generated code compiles. Tests pass. Types validate. And the domain model quietly stops
-meaning one thing.
+> **Plan Mode describes intent. PlanTypes makes the plan typed, inspectable, and testable.**
 
-## 30 seconds
+This is not a replacement for Claude Code or Cursor. It's the thing their plans should produce.
 
-You have this:
+## 60 seconds
 
 ```python
-class Finding(BaseModel):
-    """A proposition extracted from a source."""
-    text: str
-    source_id: str
+from plan_types import Plan, Step, Variable, render_mermaid, validate
+from plan_types.invariants import topology, typing
+
+PAPER    = Variable("paper", ClinicalStudy)
+FINDINGS = Variable("findings", list[Finding])
+SUMMARY  = Variable("summary", str)
+
+class Extract(Step):
+    inputs, outputs = (PAPER,), (FINDINGS,)
+
+class Summarize(Step):
+    inputs, outputs = (PAPER, FINDINGS), (SUMMARY,)   # fans in — needs both
+
+plan = Plan(
+    name="extract_and_summarize",
+    steps=(Extract(), Summarize()),
+    declared_inputs=(PAPER,),        # what the Plan expects to be handed
+)
+
+validate(plan, [*topology.ALL, *typing.ALL])          # → []
+print(render_mermaid(plan))
 ```
 
-An agent adds this:
+```mermaid
+flowchart TD
+  IN_paper(["paper: ClinicalStudy"])
+  s0["Extract"]
+  s1["Summarize"]
+  OUT_summary(["summary: str"])
+  IN_paper -- paper --> s0
+  IN_paper -- paper --> s1
+  s0 -- findings --> s1
+  s1 --> OUT_summary
+```
+
+Every arrow is read from the bindings. Add an input and the picture changes with no edit to the
+renderer — a hand-drawn diagram is a claim about the code that stops being true the moment a Step
+moves, and nothing tells you.
+
+## Why this exists
+
+The workflow that motivates it:
+
+> A developer builds substantial software architecture mostly through conversation with a coding
+> agent — potentially from a phone, barely touching the editor.
+
+That has characteristic failure modes, and they are not typos:
+
+| | |
+|---|---|
+| terminology drift | the same thing acquires three names |
+| ambiguous references | "the graph" now means two classes |
+| duplicate concepts | an alias gets read as a new abstraction and implemented twice |
+| incompatible I/O | two Steps that look connected and move nothing |
+| accidental topology changes | a rewiring nobody decided on |
+| architecture invented by the agent | abstractions that arrived without a decision |
+| docs diverging from code | a diagram that was true last week |
+| runtime detail obscuring design | retries and durability drowning the logic |
+
+> **The framework constrains coding agents so they cannot casually invent architecture.**
+
+Instead of
+
+```
+conversation → informal plan → agent writes code
+```
+
+the pattern becomes
+
+```
+conversation
+    ↓
+typed Plan
+    ↓
+validate + visualize + inspect
+    ↓
+agent writes code against the Plan
+```
+
+## The logical process first, the runtime later — or never
+
+```
+domain types
+    ↓
+Plan / Step / Variable
+    ↓
+invariants
+    ↓
+visualization
+    ↓
+optional execution adapters  ── plain Python │ Temporal │ LangGraph
+```
+
+Most workflow systems fuse process design with orchestration semantics from the first line. PlanTypes
+separates them, and the separation is the point: simpler debugging, fewer irrelevant runtime
+concerns, and a specification a coding agent can change safely. Plenty of processes never need
+retries or durability at all.
+
+⚠️ **A Plan is not a DAG.** A Plan *may* be acyclic — that's `topology.acyclic`, an invariant you
+opt into. Building it into the type would rule out iterative processes before anyone asked for one,
+and [P-Plan](http://purl.org/net/p-plan#) has no acyclicity axiom either.
+
+## Invariants are executable rules
 
 ```python
-class ResearchFinding(BaseModel):
-    """A proposition extracted from a research source."""
-    text: str
-    source_id: str
+SemanticInvariant(
+    id="typing.plan_time_only",
+    statement="A plan-time type must not carry runtime execution state.",
+    why="Observed: `Variable` gained `value` and `started_at`, kept its docstring, kept passing "
+        "its tests, and silently became a runtime record.",
+    check=...,
+)
 ```
 
-```console
-$ conceptlint .
-near-duplicate-model: Finding and ResearchFinding share a head noun and 100% of their fields
-  concepts : Finding (models.py:4), ResearchFinding (models.py:10)
-  need     : the same concept, an explicit subtype, or intentionally distinct?
-             consolidate, inherit, or make the difference visible in the fields
+Four concrete categories, not one vague subsystem:
+
+| | catches |
+|---|---|
+| `naming/` | **ambiguous reference** — one name, many concepts · **naming drift** — many names, one concept |
+| `typing/` | bindings whose types don't line up; plan-time types carrying runtime state |
+| `topology/` | cycles, unbound inputs, orphan Variables, two producers for one Variable |
+| `provenance/` | an `ONTOLOGY_IRI` naming a term nobody vendored |
+
+⚠️ `declared_inputs` is not decoration. With inputs fully *derived* — "consumed here, produced by
+nothing here" — an accidental gap and the Plan's own signature are **the same set**, so
+`topology.bound_inputs` can never fire. Declaring them makes the distinction expressible. Omit it
+and that rule reports NOT CHECKED, which is how this README was caught claiming `→ []` when it
+returned a finding.
+
+`validate()` **collects** rather than stopping at the first failure — one cycle can cause three
+findings, and seeing all three is how you tell one root cause from three problems.
+
+⚠️ And a check that *cannot run* reports **NOT CHECKED**, never a pass. "We didn't look" and "we
+looked and it was fine" must never render the same.
+
+## Grounded in P-Plan, and the grounding is checked
+
+`Plan`, `Step` and `Variable` come from [P-Plan](http://purl.org/net/p-plan#); `Activity`, `Entity`
+and `Agent` from [PROV-O](https://www.w3.org/TR/prov-o/). Plan-time and runtime, kept apart:
+
+```
+p-plan:Step      the intended operation
+prov:Activity    one execution of it
 ```
 
-**No new base classes. No schema language. No second ontology to maintain.** Ordinary Pydantic stays
-the source of truth — ConceptLint reads the names, docstrings, fields and inheritance already there.
+⚠️ **`Step ≠ Activity`**, even where a runtime maps them one to one. That mapping is a property of
+the framework, not of the concepts — and the moment code believes otherwise, *"the definition is
+wrong"* and *"that run failed"* become the same sentence with opposite fixes.
 
-Make the relationship explicit and it goes quiet:
+The ontologies are **vendored with a hash**, and `provenance.grounded_citation` checks that every
+cited IRI names a real term. That rule exists because this package once cited `p-plan#Step` from
+memory and implemented something P-Plan doesn't describe. A citation nobody can follow is
+decoration with the authority of a fact.
 
-```python
-class ClinicalFinding(Finding):
-    """A finding about one patient's care."""
-    patient_id: str
-```
+## Status — honest
 
-Python's own inheritance *is* the declaration. Nothing further is asked of you.
+**Works today:** typed Plans, the four invariant categories, `render_mermaid`, P-Plan/PROV-O
+grounding with vendored ontologies, 114 tests.
 
-## Drift is read from git
+**Not built:** execution adapters (Temporal, LangGraph), persistence, retries, scheduling, embedding
+based similarity, and agent-hook integration. The pattern above describes what the artifact is
+*for*; the hooks that would put it in an agent's loop are not wired yet.
 
-The other two are visible in one snapshot. Drift is not — it is a claim about two points in time.
-A docstring is a promise; the fields are what the model actually is:
-
-```
-docstring changed, fields changed    evolution — they decided, and said so    silent
-docstring changed, fields same       a rewording                              silent
-docstring same,    fields same       nothing happened                         silent
-docstring same,    fields CHANGED    the promise no longer describes it       FLAG
-```
+Not on PyPI. From source:
 
 ```bash
-conceptlint . --since HEAD~20
+git clone https://github.com/borisdev/conceptlint && cd conceptlint && uv sync
+uv run pytest -q
 ```
 
-Silent with no git history: "cannot tell" is not a finding.
+## Open question, deliberately
 
-## Two signals, both required
+Are semantic invariants the general product, with PlanTypes as the first ontology-grounded use
+case — or is PlanTypes the product, with invariants as a subsystem inside it?
 
-A shared head noun **and** overlapping fields. Either alone is noise: `UserRequest` and
-`SearchRequest` share a noun and are properly distinct; two unrelated models both carrying `text` is
-coincidence. Boilerplate fields (`id`, `name`, `created_at`) are ignored — half the models in any
-repo have them.
-
-## The two laws
-
-```
-One Concept  →  One Meaning            a term must not quietly acquire a second meaning
-One Meaning  →  One Canonical Concept  a meaning must not quietly acquire a second term
-```
-
-Neither forbids a distinction. Both forbid an **undeclared** one — every finding has a legal
-resolution that is one line of code.
-
-## Run it
-
-Not on PyPI yet. From source:
-
-```bash
-git clone https://github.com/borisdev/conceptlint
-cd conceptlint
-uv sync
-uv run conceptlint .                  # lint the models here
-uv run conceptlint . --since HEAD~20  # include drift
-```
-
-`conceptlint` exits **1** on a finding and **0** in silence. There is no success message — a tool that
-congratulates you on every clean run teaches you to stop reading it.
-
-## When it runs — three moments
-
-Each catches the same failure at a different price. The first is free and always on; the other two
-interrupt, which is why they are opt-in.
-
-| moment | what it costs | what it catches |
-|---|---|---|
-| **CI, every PR** — a ratchet | nothing | drift, within one PR instead of a quarter |
-| **Before a model is written** — `PreToolUse` hook | a prompt per new model | the duplicate, before 30 files import it |
-| **In conversation** — the term index | a note on some messages | the wrong word, before it becomes a class |
-
-## 1. CI, as a ratchet
-
-The gate does not demand a clean codebase. It demands the number never goes **up**.
-
-```bash
-BASELINE=$(grep -vE '^\s*(#|$)' .conceptlint-baseline | head -1)
-FOUND=$(conceptlint . 2>&1 | grep -cE '^(near-duplicate-model|overloaded|drift):')
-[ "$FOUND" -gt "$BASELINE" ] && exit 1
-```
-
-Commit today's count to `.conceptlint-baseline`. Staying flat costs nothing; adding a duplicate
-fails the PR and prints it:
-
-```
-::error::domain-language findings rose from 75 to 81.
-near-duplicate-model: Arm and StudyArm share a head noun and 75% of their fields
-```
-
-⚠️ **Demanding zero is how this gets uninstalled.** A codebase with 75 findings would need weeks of
-cleanup before anyone could merge anything, so the gate would come off in a week. Raising the
-baseline is allowed and normal — it just has to be a sentence in a commit message rather than
-silence.
-
-⛔ And capture the run before counting. Piping straight into `grep -c ... || true` once reported
-`findings: 0, baseline: 75` off a **usage error message** and went green: the pinned version had a
-different CLI. A non-zero exit with zero findings is a broken gate, not a pass.
-
-## 2. Stop it before it is written
-
-A linter reports. A hook interrupts. Install it as a `PreToolUse` hook and the agent has to answer
-before it adds a model:
-
-```json
-{"hooks": {"PreToolUse": [{"matcher": "Write|Edit",
-  "hooks": [{"type": "command", "command": "python3 -m conceptlint.integrations.pre_write"}]}]}}
-```
-
-Real output, run against a 478-model medical codebase. The agent was about to write
-`ExposureProtocol`:
-
-```
-⛔ `ExposureProtocol` looks like `Protocol`, which already exists at
-   libs/extraction/src/nobs/extraction/models/common.py:112
-   Reuse it, or say what distinction `ExposureProtocol` carries that it does not.
-```
-
-And when the model really is new it does not go quiet — it asks the four questions, because
-"nothing matched" is not the same as "go ahead":
-
-```
-❓ `TreatmentProtocol` is a NEW domain model. Before writing it, answer one of:
-   1. reuse    — does an existing model already mean this?
-   2. extend   — should it subclass one, so the relationship is declared?
-   3. compose  — is it two existing models together, rather than a new kind?
-   4. split    — should an existing model gain a `kind` discriminator instead?
-   If none fit, say why in one line and proceed.
-```
-
-**Silent unless a new model appears**, and it fails open on any error — a semantic convenience must
-never be able to block work.
-
-## 3. The overload that lives in a sentence
-
-The expensive ambiguity is not in a file. It is two people using one word for two things and
-resolving it, wrongly, in silence — the *"by X here I mean…"* that a linter never hears.
-
-`overloaded_terms()` and `claimed_by()` build the index that lets something try: a term maps to a
-model by its **name** or by a recorded **alias**.
-
-```python
-from conceptlint.models import claimed_by, discover_models
-
-claimed_by(discover_models(root), "add a step to the workflow so the run records each activity")
-```
-
-```
-⚠️ 'workflow' -> RETIRED WORD: you mean Plan
-```
-
-Two things that output shows, and both are the design:
-
-- **It fires on an UNAMBIGUOUS word.** `workflow` has exactly one right answer — which is precisely
-  why a check that only reported multi-claimant terms would stay silent on the commonest case.
-- **The other four words produced nothing.** `step`, `run`, `activity`, `add` are all fine. That
-  silence is the feature; a version that comments on every sentence is uninstalled the same day.
-
-The alias table is the one thing extraction cannot produce — a dead word stays dead only because
-someone recorded that it died:
-
-```python
-class Plan(BaseModel):
-    ALSO_KNOWN_AS = ("Workflow", "Pipeline")     # no base class, no import
-```
-
-`conceptlint/vocabularies/dataflow.py` ships a seeded one for Python dataflow tooling — Airflow's
-`DAG`, Prefect's `flow`, Dagster's `op` — each carrying the framework it came from. ⚠️ **A declared
-class always beats a seeded alias.** A seed insisting `run` means `Activity` in a repo that declares
-`class Run` reports a dead word for a live one, and that is noise in the register where it costs
-most.
-
-⚠️ Not wired to a chat yet. The index and the vocabulary are built and measured; making it interrupt
-a real conversation needs a `UserPromptSubmit` hook, and the open question is the noise threshold.
-
-## Real-world example: a typed dataflow
-
-This repository includes a small typed-dataflow package used as ConceptLint's first real
-domain-model testbed. Its vocabulary is grounded in P-Plan and PROV-O, and mistakes encountered
-while building it become ConceptLint eval cases.
-
-**It demonstrates ConceptLint preserving a coherent domain type system. It is not ConceptLint's core
-abstraction, and you do not need it.**
-
-```python
-from conceptlint.dataflow import Plan, Step, Variable
-
-
-class ParseStudyStep(Step[Study, Findings]):
-    consumes = Variable("study", Study)
-    produces = Variable("findings", Findings)
-```
-
-Building this package exposed exactly the failures ConceptLint is meant to catch: near-duplicate
-concepts, overloaded terms, and plan-time/runtime confusion.
-
-One relationship is worth naming, because it is the point rather than a detail. **ConceptLint does
-not decide that `Step` is the right word.** That domain chose an ontology in which `Step` already has
-an established meaning; ConceptLint stops later code quietly changing it.
-
-→ [`conceptlint/dataflow/README.md`](conceptlint/dataflow/README.md) for the architecture: the
-plan-time/runtime split, why `Step ≠ Activity`, the execution graph, and how an executor wraps it.
-
-## Evals
-
-Tests verify mechanics; evals verify semantic behaviour. Each case holds **both directions**
-of one lesson:
-
-```
-evals/minimal/<failure>/
-    before.py         the mistake — must FLAG
-    after.py          the fix     — must PASS
-    expected.yaml     which rules before.py must trip
-    provenance.yaml   where it came from
-```
-
-`after.py` is the more valuable half: a fix that does not silence the finding is how someone learns
-to ignore a linter.
-
-```bash
-uv run python3 -m evals.runner
-```
-
-Two of the five cases are **real mistakes made while building the dataflow package**, with the
-commit that made them. That is where the corpus is meant to come from — a linter proven only on
-fixtures its author invented is not proven.
-
-## Status
-
-Working: duplicate and overloaded detection on ordinary Pydantic models, drift against git history,
-and the `Concept` layer for vocabulary you want to declare explicitly. 73 tests, 9 eval assertions.
-
-**Not on PyPI.** Install from source.
-
-**Evidence, stated honestly:** run against a production medical codebase — 169 Pydantic models
-across four packages — it found **one genuine duplicate**, two names with identical docstrings and
-identical fields in different files. That is a demonstration, not a study. No hit rate is claimed
-because none was measured.
+Not decided. The code is arranged so invariants *could* split into a standalone package later, and
+that split has not been made. Worth arguing about in the open rather than settling early.

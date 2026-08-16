@@ -231,3 +231,45 @@ def test_multistep_is_both_a_plan_and_decomposable() -> None:
     ms = MultiStep(name="inner", steps=(Extract(), Summarize()))
     assert isinstance(ms, Plan)
     assert ms.decomposed_as_plan().shape() == ms.shape()
+
+
+# --- the README must not lie ---------------------------------------------------------------------
+
+def test_the_readme_example_runs_and_returns_what_it_claims() -> None:
+    """The README asserts `validate(...) → []`. It said that while returning a finding.
+
+    Caught by running it: without `declared_inputs`, `topology.bound_inputs` reports NOT CHECKED,
+    so the claimed empty list was wrong. A README whose code does not run is the exact failure this
+    package is about — a confident claim with nothing checking it.
+    """
+    import pathlib
+    import re
+
+    readme = (pathlib.Path(__file__).resolve().parents[1] / "README.md").read_text()
+    assert "declared_inputs=(PAPER,)" in readme, (
+        "the 60-second example must declare its inputs, or the validate() it claims is wrong")
+
+    plan = Plan(name="extract_and_summarize", steps=(Extract(), Summarize()),
+                declared_inputs=(PAPER,))
+    assert validate(plan, [*topology.ALL, *typing_inv.ALL]) == [], (
+        "the README claims this returns []")
+
+    # And the shape of the diagram it prints.
+    out = render_mermaid(plan)
+    for edge in ("IN_paper -- paper -->", "-- findings -->", "--> OUT_summary"):
+        assert edge in out, f"README shows {edge!r}, renderer does not produce it"
+
+
+def test_the_readme_does_not_claim_unbuilt_integrations() -> None:
+    """`voice.md`: copy may only claim what the artifact delivers EVERY time.
+
+    Execution adapters and agent hooks are non-goals for now, so the Status section has to say so
+    rather than letting the 'why this exists' narrative imply they exist.
+    """
+    import pathlib
+
+    readme = (pathlib.Path(__file__).resolve().parents[1] / "README.md").read_text()
+    assert "Not built:" in readme
+    for unbuilt in ("Temporal", "persistence", "agent-hook"):
+        assert unbuilt in readme.split("Not built:")[1][:400], (
+            f"{unbuilt} is not implemented; Status must say so")
