@@ -1,7 +1,7 @@
 """`Step` — one planned unit of work, with typed inputs and outputs.
 
 Grounded in [p-plan:Step](http://purl.org/net/p-plan#Step), and this time the grounding is
-*checked*: `conceptlint/ontologies/invariants.py` verifies the IRI names a real term, and
+*checked*: `plan_types.invariants.provenance` verifies the IRI names a real term, and
 `tests/test_pplan_grounding.py` asserts the axioms below against the vendored ontology.
 
     p-plan:hasInputVar    Step -> Variable   NO cardinality restriction
@@ -34,7 +34,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar, Generic, TypeVar
 
-from conceptlint.dataflow.variable import Variable
+from plan_types.plan.variable import Variable
 
 InputT = TypeVar("InputT")
 OutputT = TypeVar("OutputT")

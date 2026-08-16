@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from conceptlint.core.concept import Concept
-from conceptlint.dataflow.plan import Plan
+from plan_types.plan.plan import Plan
 
 
 class TrialError(Exception):

@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from conceptlint.core.concept import Concept
 from conceptlint.core.invariant import ConceptIssue
 from conceptlint.core.lint import lint
-from conceptlint.dataflow.invariants import NoExecutionFields, NoPrivateSynonym, PlanTimeOnly
+from plan_types.invariants.topology import NoExecutionFields, NoPrivateSynonym, PlanTimeOnly
 from conceptlint.ontologies.pplan.concepts import Activity, Entity, Plan, Step, Variable
 
 MINIMAL = pathlib.Path(__file__).resolve().parent / "minimal"

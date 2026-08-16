@@ -2,7 +2,7 @@
 
 Five, and not a sixth. P-Plan and PROV-O between them define dozens of terms; importing the universe
 would make this an ontology implementation, which §22 forbids. These five are the ones the typed
-dataflow in `conceptlint.dataflow` actually needs.
+dataflow in `plan_types.plan` actually needs.
 
 ## The distinction the whole package exists to hold
 
@@ -89,6 +89,6 @@ class Entity(Concept):
     ALSO_KNOWN_AS: ClassVar[tuple[str, ...]] = ("Artifact", "Dataset", "Value")
 
 
-#: The plan-time/runtime pairing, as data. `conceptlint.dataflow.invariants` reads this rather than
+#: The plan-time/runtime pairing, as data. `plan_types.plan.invariants` reads this rather than
 #: hardcoding the pairs, so adding a sixth concept cannot silently escape the distinction.
 REALIZES: dict[type[Concept], type[Concept]] = {Activity: Step, Entity: Variable}

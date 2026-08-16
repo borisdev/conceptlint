@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from conceptlint.dataflow import Plan, Step, Variable
+from plan_types.plan import Plan, Step, Variable
 from conceptlint.eval import (AIEvalTrial, EvalCase, Judge, Result, Rubric, TrialError,
                               comparable, digest)
 

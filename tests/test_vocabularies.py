@@ -13,7 +13,7 @@ from __future__ import annotations
 import pathlib
 import textwrap
 
-from conceptlint.models import discover_models
+from plan_types.naming.records import discover_models
 from conceptlint.vocabularies.dataflow import (
     AMBIGUOUS_ACROSS_FRAMEWORKS, DATAFLOW, applicable, seeded_aliases,
 )

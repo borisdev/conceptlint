@@ -1,5 +1,5 @@
 """Reuse the canonical concept instead."""
-from conceptlint.dataflow import Step
+from plan_types.plan import Step
 
 
 class ParseStudyStep(Step):

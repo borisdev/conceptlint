@@ -63,7 +63,7 @@ def _new_models(content: str) -> list[tuple[str, tuple[str, ...]]]:
 
 
 def _existing(repo: pathlib.Path):
-    from conceptlint.models import ModelRecord, discover_models, _overlap  # noqa: PLC0415
+    from plan_types.naming.records import ModelRecord, discover_models, _overlap  # noqa: PLC0415
     return discover_models(repo), _overlap
 
 
@@ -112,7 +112,7 @@ def review(content: str, repo: pathlib.Path, path: str = "") -> str | None:
 
 
 def _words(name: str) -> set[str]:
-    from conceptlint.models import words  # noqa: PLC0415
+    from plan_types.naming.records import words  # noqa: PLC0415
     return words(name)
 
 

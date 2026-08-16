@@ -30,7 +30,7 @@ import pathlib
 import subprocess
 from dataclasses import dataclass
 
-from conceptlint.models import COMMON_FIELDS, ModelRecord, discover_models
+from plan_types.naming.records import COMMON_FIELDS, ModelRecord, discover_models
 
 
 @dataclass(frozen=True)

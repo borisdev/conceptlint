@@ -24,11 +24,6 @@ from typing import Iterable, Sequence
 
 from conceptlint.core.concept import Concept, declared
 from conceptlint.core.invariant import ConceptIssue, Invariant, registered
-# ⚠️ Imported for its SIDE EFFECT. Registration is subclassing, so an Invariant in a module
-# nobody imports does not exist — and `GroundedCitation` silently not running is precisely
-# the shape of bug it was written to catch. noqa: it is not unused, it is the registration.
-from conceptlint.ontologies import invariants as _ontology_invariants  # noqa: F401
-
 _WORD = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
 
 
@@ -248,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
     # Ordinary Pydantic models — no base class required. This is the DEFAULT surface: every repo
     # has models long before it has declared Concepts, and requiring declarations first is the
     # "annotate your whole codebase" tax nobody pays.
-    from conceptlint.models import discover_models, near_duplicates, overloaded
+    from plan_types.naming.records import discover_models, near_duplicates, overloaded
 
     found_models = discover_models(args.path)
 

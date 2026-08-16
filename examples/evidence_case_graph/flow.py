@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from conceptlint.dataflow import Plan, Step, Variable
+from plan_types.plan import Plan, Step, Variable
 
 
 @dataclass(frozen=True)
