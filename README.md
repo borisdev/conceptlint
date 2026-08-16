@@ -102,10 +102,48 @@ uv run conceptlint .                  # lint the models here
 uv run conceptlint . --since HEAD~20  # include drift
 ```
 
-`check` exits **1** on a finding and **0** in silence. There is no success message — a tool that
+`conceptlint` exits **1** on a finding and **0** in silence. There is no success message — a tool that
 congratulates you on every clean run teaches you to stop reading it.
 
-## Stop it before it is written
+## When it runs — three moments
+
+Each catches the same failure at a different price. The first is free and always on; the other two
+interrupt, which is why they are opt-in.
+
+| moment | what it costs | what it catches |
+|---|---|---|
+| **CI, every PR** — a ratchet | nothing | drift, within one PR instead of a quarter |
+| **Before a model is written** — `PreToolUse` hook | a prompt per new model | the duplicate, before 30 files import it |
+| **In conversation** — the term index | a note on some messages | the wrong word, before it becomes a class |
+
+## 1. CI, as a ratchet
+
+The gate does not demand a clean codebase. It demands the number never goes **up**.
+
+```bash
+BASELINE=$(grep -vE '^\s*(#|$)' .conceptlint-baseline | head -1)
+FOUND=$(conceptlint . 2>&1 | grep -cE '^(near-duplicate-model|overloaded|drift):')
+[ "$FOUND" -gt "$BASELINE" ] && exit 1
+```
+
+Commit today's count to `.conceptlint-baseline`. Staying flat costs nothing; adding a duplicate
+fails the PR and prints it:
+
+```
+::error::domain-language findings rose from 75 to 81.
+near-duplicate-model: Arm and StudyArm share a head noun and 75% of their fields
+```
+
+⚠️ **Demanding zero is how this gets uninstalled.** A codebase with 75 findings would need weeks of
+cleanup before anyone could merge anything, so the gate would come off in a week. Raising the
+baseline is allowed and normal — it just has to be a sentence in a commit message rather than
+silence.
+
+⛔ And capture the run before counting. Piping straight into `grep -c ... || true` once reported
+`findings: 0, baseline: 75` off a **usage error message** and went green: the pinned version had a
+different CLI. A non-zero exit with zero findings is a broken gate, not a pass.
+
+## 2. Stop it before it is written
 
 A linter reports. A hook interrupts. Install it as a `PreToolUse` hook and the agent has to answer
 before it adds a model:
@@ -115,24 +153,71 @@ before it adds a model:
   "hooks": [{"type": "command", "command": "python3 -m conceptlint.integrations.pre_write"}]}]}}
 ```
 
-```
-⛔ `ResearchFinding` looks like `Finding`, which already exists at models.py:4
-   A proposition extracted from a source.
-   Reuse it, or say what distinction `ResearchFinding` carries that it does not.
-```
-
-And when the model really is new:
+Real output, run against a 478-model medical codebase. The agent was about to write
+`ExposureProtocol`:
 
 ```
-❓ `RetryPolicy` is a NEW domain model. Before writing it, answer one of:
+⛔ `ExposureProtocol` looks like `Protocol`, which already exists at
+   libs/extraction/src/nobs/extraction/models/common.py:112
+   Reuse it, or say what distinction `ExposureProtocol` carries that it does not.
+```
+
+And when the model really is new it does not go quiet — it asks the four questions, because
+"nothing matched" is not the same as "go ahead":
+
+```
+❓ `TreatmentProtocol` is a NEW domain model. Before writing it, answer one of:
    1. reuse    — does an existing model already mean this?
    2. extend   — should it subclass one, so the relationship is declared?
    3. compose  — is it two existing models together, rather than a new kind?
    4. split    — should an existing model gain a `kind` discriminator instead?
+   If none fit, say why in one line and proceed.
 ```
 
 **Silent unless a new model appears**, and it fails open on any error — a semantic convenience must
 never be able to block work.
+
+## 3. The overload that lives in a sentence
+
+The expensive ambiguity is not in a file. It is two people using one word for two things and
+resolving it, wrongly, in silence — the *"by X here I mean…"* that a linter never hears.
+
+`overloaded_terms()` and `claimed_by()` build the index that lets something try: a term maps to a
+model by its **name** or by a recorded **alias**.
+
+```python
+from conceptlint.models import claimed_by, discover_models
+
+claimed_by(discover_models(root), "add a step to the workflow so the run records each activity")
+```
+
+```
+⚠️ 'workflow' -> RETIRED WORD: you mean Plan
+```
+
+Two things that output shows, and both are the design:
+
+- **It fires on an UNAMBIGUOUS word.** `workflow` has exactly one right answer — which is precisely
+  why a check that only reported multi-claimant terms would stay silent on the commonest case.
+- **The other four words produced nothing.** `step`, `run`, `activity`, `add` are all fine. That
+  silence is the feature; a version that comments on every sentence is uninstalled the same day.
+
+The alias table is the one thing extraction cannot produce — a dead word stays dead only because
+someone recorded that it died:
+
+```python
+class Plan(BaseModel):
+    ALSO_KNOWN_AS = ("Workflow", "Pipeline")     # no base class, no import
+```
+
+`conceptlint/vocabularies/dataflow.py` ships a seeded one for Python dataflow tooling — Airflow's
+`DAG`, Prefect's `flow`, Dagster's `op` — each carrying the framework it came from. ⚠️ **A declared
+class always beats a seeded alias.** A seed insisting `run` means `Activity` in a repo that declares
+`class Run` reports a dead word for a live one, and that is noise in the register where it costs
+most.
+
+⚠️ Not wired to a chat yet. The index and the vocabulary are built and measured; making it interrupt
+a real conversation needs a `UserPromptSubmit` hook, and the open question is the noise threshold.
 
 ## Real-world example: a typed dataflow
 
