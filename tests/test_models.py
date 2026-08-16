@@ -482,3 +482,85 @@ def test_enrichment_needs_no_base_class(tmp_path: pathlib.Path) -> None:
     found = {m.name: m for m in discover_models(tmp_path)}
     assert found["Activity"].also_known_as == ("StepRun", "TaskInstance")
     assert found["Activity"].ontology_iri.endswith("#Activity")
+
+
+# --- two exclusions that make this checker QUIETER, each with the case it must still catch -------
+
+
+def test_versioned_copies_are_not_near_duplicates(tmp_path: pathlib.Path) -> None:
+    """`overloaded()` has always skipped versions/; this function never did.
+
+    One intentional pattern was noise in one checker and understood in the other — 14 of 55 findings
+    on a real codebase. The namespace already says which Finding is which.
+    """
+    for v in ("v3_0", "v4_0"):
+        d = tmp_path / "versions" / v
+        d.mkdir(parents=True)
+        (d / "m.py").write_text(textwrap.dedent('''
+            from pydantic import BaseModel
+            class ResearchFinding(BaseModel):
+                """A measured result."""
+                claim: str
+                pmid: str
+        '''), encoding="utf-8")
+    assert _pairs(tmp_path) == []
+
+
+def test_two_copies_OUTSIDE_versions_are_still_flagged(tmp_path: pathlib.Path) -> None:
+    """The PASS twin for the exclusion above. The same pair in ordinary dirs must still fire."""
+    for d in ("alpha", "beta"):
+        sub = tmp_path / d
+        sub.mkdir()
+        (sub / "m.py").write_text(textwrap.dedent('''
+            from pydantic import BaseModel
+            class ResearchFinding(BaseModel):
+                """A measured result."""
+                claim: str
+                pmid: str
+        '''), encoding="utf-8")
+    assert _pairs(tmp_path), "a duplicate outside versions/ must still be reported"
+
+
+def test_the_private_twin_is_a_declaration_not_a_duplicate(tmp_path: pathlib.Path) -> None:
+    """`_Claim` beside `Claim` — the underscore IS Python's "internal variant of that".
+
+    ⚠️ NAME FOR NAME. `_WireClaim` beside `Claim` is NOT exempt and should not be: the underscore
+    says "internal", it does not say "internal version of Claim". My first triage counted every
+    private class as a twin and overstated this category by more than half.
+    """
+    root = _write(tmp_path, '''
+        from pydantic import BaseModel
+
+        class Claim(BaseModel):
+            """What the plan asserts."""
+            text: str
+            subject: str
+
+        class _Claim(BaseModel):
+            """What the plan asserts — the wire form."""
+            text: str
+            subject: str
+    ''')
+    assert _pairs(root) == []
+
+
+def test_two_unrelated_privates_are_NOT_exempt(tmp_path: pathlib.Path) -> None:
+    """The PASS twin, and the reason the check compares NAMES rather than just the underscore.
+
+    Exempting every private class would silence a whole namespace. `_ClaimCache` is not the private
+    variant of `Claim` — it is a different concept that happens to be internal.
+    """
+    root = _write(tmp_path, '''
+        from pydantic import BaseModel
+
+        class ClaimRecord(BaseModel):
+            """One asserted claim."""
+            text: str
+            subject: str
+
+        class _ClaimHolder(BaseModel):
+            """One asserted claim."""
+            text: str
+            subject: str
+    ''')
+    assert _pairs(root), "only a name-for-name twin is exempt"

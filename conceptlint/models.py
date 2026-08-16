@@ -223,6 +223,19 @@ def _related(a: ModelRecord, b: ModelRecord, index: dict[str, ModelRecord]) -> b
     return b.name in ancestry(a) or a.name in ancestry(b)
 
 
+def _private_twin(a: ModelRecord, b: ModelRecord) -> bool:
+    """Is one of these the underscore-prefixed variant of the other?
+
+    ⚠️ Requires the NAMES to correspond, not merely that one starts with `_`. `_DedupResponse` and
+    `DedupResponse` are a twin; `_Cache` and `DedupResponse` are two unrelated privates, and
+    treating every private class as exempt would silence a whole namespace.
+    """
+    x, y = a.name.lstrip("_"), b.name.lstrip("_")
+    if x != y:
+        return False
+    return a.name.startswith("_") != b.name.startswith("_")
+
+
 def _ancestor_fields(m: ModelRecord, index: dict[str, ModelRecord]) -> set[str]:
     """Fields a model gets from its bases rather than declares itself."""
     out: set[str] = set()
@@ -273,6 +286,21 @@ def near_duplicates(models: Sequence[ModelRecord],
     for a in models:
         for b in models:
             if a is b or _related(a, b, index):
+                continue
+            # ⚠️ Both exclusions below make this checker QUIETER, which is the direction that hides
+            # real problems. Each is here because the pattern is a DECLARATION we were failing to
+            # read — not because the finding was inconvenient.
+            #
+            # 1. Versioned copies. `overloaded()` has skipped `versions/` since the day it found 19
+            #    of 20 hits were versioned IRs; this function never did, so one intentional pattern
+            #    was noise in one checker and understood in the other. 14 of 55 on nobsmed.
+            if _versioned(a) or _versioned(b):
+                continue
+            # 2. The private twin. `_WireClaim` beside `Claim` is not two names for one meaning —
+            #    the leading underscore is Python's own way of saying "this is the internal variant
+            #    of that", which is as explicit as inheritance and needs no second declaration.
+            #    19 of 55 on nobsmed, every one a deliberate wire-format or response twin.
+            if _private_twin(a, b):
                 continue
             key = tuple(sorted((a.name, b.name)))
             if key in seen:
