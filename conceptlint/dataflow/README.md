@@ -23,6 +23,17 @@ Plan
         └── Variable  instantiated as  Entity
 ```
 
+A Step consumes **0..N** Variables and produces **0..N** — `p-plan:hasInputVar` and
+`hasOutputVar` carry no cardinality restriction, and `p-plan:isOutputVarOf` is an
+`owl:FunctionalProperty`, so a Variable has exactly one producer and any number of consumers. The
+wiring IS the shared Variables; there is no "next step" relation, and `Plan.order()` derives
+execution order from the dependency edges.
+
+⚠️ Until 2026-08-16 this package modelled a Step as one-in/one-out and a Plan as a pairwise chain.
+That was written from a remembered reading of P-Plan and it made the first real pipeline
+inexpressible. `tests/test_pplan_grounding.py` now asserts these axioms against a vendored copy of
+the ontology, so the claim of grounding can fail.
+
 **`Step ≠ Activity`**, even where an execution framework maps them one to one. That mapping is a
 property of the framework, not of the concepts — and the moment code believes otherwise, *"the
 definition is wrong"* and *"that run failed"* become the same sentence with opposite fixes.

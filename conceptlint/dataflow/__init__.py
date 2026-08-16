@@ -5,13 +5,14 @@ the handoff, and `Plan.run` for the deliberately minimal executor.
 """
 from conceptlint.dataflow.execution import (Activity, Agent, Entity, GraphError, Run, Used,
                                              WasAssociatedWith, WasDerivedFrom, WasGeneratedBy)
-from conceptlint.dataflow.plan import Plan, PlanError, check_arms, substitutable
+from conceptlint.dataflow.plan import (MultiStep, Plan, PlanError, check_arms,
+                                       substitutable)
 from conceptlint.dataflow.step import Step
 from conceptlint.dataflow.variable import Variable
 
 __all__ = [
     # plan time — what SHOULD happen
-    "Plan", "Step", "Variable", "PlanError", "substitutable", "check_arms",
+    "Plan", "MultiStep", "Step", "Variable", "PlanError", "substitutable", "check_arms",
     # execution — what DID happen
     "Run", "Activity", "Entity", "Agent", "GraphError",
     "Used", "WasGeneratedBy", "WasDerivedFrom", "WasAssociatedWith",

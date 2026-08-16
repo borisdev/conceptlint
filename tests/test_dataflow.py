@@ -33,19 +33,19 @@ class Graph:
 
 
 class Parse(Step[Study, Findings]):
-    consumes = Variable("study", Study)
-    produces = Variable("findings", Findings)
+    inputs = (Variable("study", Study),)
+    outputs = (Variable("findings", Findings),)
 
-    def run(self, value: Study) -> Findings:
+    def run(self, study: Study) -> Findings:      # keyword names ARE the Variable names
         return Findings(n=1)
 
 
 class Build(Step[Findings, Graph]):
-    consumes = Variable("findings", Findings)
-    produces = Variable("graph", Graph)
+    inputs = (Variable("findings", Findings),)
+    outputs = (Variable("graph", Graph),)
 
-    def run(self, value: Findings) -> Graph:
-        return Graph(n=value.n)
+    def run(self, findings: Findings) -> Graph:
+        return Graph(n=findings.n)
 
 
 # ── Variable ──────────────────────────────────────────────────────────────────────────────────────
@@ -68,13 +68,17 @@ def test_a_variable_accepts_its_own_type_and_subclasses() -> None:
 # ── Step ──────────────────────────────────────────────────────────────────────────────────────────
 
 def test_shape_is_the_contract() -> None:
-    assert Parse.shape() == (Study, Findings)
+    assert Parse.shape() == ((Study,), (Findings,))
 
 
 def test_a_half_declared_step_is_refused() -> None:
     """It would otherwise surface as an AttributeError deep inside Plan validation."""
-    with pytest.raises(TypeError, match="declares consumes but not the other"):
-        type("Halfway", (Step,), {"consumes": Variable("x", Study)})
+    # Rewritten 2026-08-16. "Half declared" was meaningful when a Step had exactly one input and
+    # one output; with 0..N per P-Plan, an empty side is legal (a source or a sink). The mistake
+    # worth catching now is passing a bare Variable where a tuple belongs — the singular form this
+    # package was rewritten to remove, which would otherwise iterate as characters or explode later.
+    with pytest.raises(TypeError, match="must be a tuple"):
+        type("Halfway", (Step,), {"inputs": Variable("x", Study), "outputs": ()})
 
 
 def test_an_abstract_step_declaring_neither_side_is_fine() -> None:
@@ -85,13 +89,31 @@ def test_an_abstract_step_declaring_neither_side_is_fine() -> None:
 
 def test_a_plan_validates_at_declaration() -> None:
     p = Plan(name="ok", steps=(Parse(), Build()))
-    assert p.shape() == (Study, Graph)
-    assert p.run(Study("pmid:1")) == Graph(n=1)
+    assert p.shape() == ((Study,), (Graph,))
+    # Keyword arguments, by Variable name. A Step with three inputs called positionally
+    # is one reorder away from a silent mis-wire that the type check cannot see.
+    assert p.run(study=Study("pmid:1")) == {"graph": Graph(n=1)}
 
 
-def test_mismatched_types_are_refused_before_anything_runs() -> None:
-    with pytest.raises(PlanError, match="do not line up"):
-        Plan(name="bad", steps=(Build(), Parse()))
+def test_declaring_steps_out_of_order_is_FINE_now() -> None:
+    """This used to raise. It should not.
+
+    Under the old chain model `Plan(steps=(Build(), Parse()))` was "the types do not line up",
+    because step N's single output had to feed step N+1's single input. In a P-Plan graph the
+    wiring is the shared Variable, so declaration order carries no meaning and the execution order
+    is derived. Keeping the old assertion would have preserved the bug as a test.
+    """
+    plan = Plan(name="backwards", steps=(Build(), Parse()))
+    assert [type(s).__name__ for s in plan.order()] == ["Parse", "Build"]
+
+
+def test_the_same_name_with_a_different_type_is_refused_before_anything_runs() -> None:
+    """What "mismatched" means once order stops meaning anything: a name collision that lies."""
+    class MakesFindingsAsAStr(Step):
+        inputs, outputs = (Variable("study", Study),), (Variable("findings", str),)
+
+    with pytest.raises(PlanError, match="same name, different type"):
+        Plan(name="bad", steps=(MakesFindingsAsAStr(), Build()))
 
 
 def test_a_runtime_object_in_a_plan_is_refused() -> None:
@@ -117,8 +139,8 @@ def test_an_empty_plan_is_refused() -> None:
 
 def test_two_plans_with_one_shape_are_substitutable() -> None:
     class Direct(Step[Study, Graph]):
-        consumes = Variable("study", Study)
-        produces = Variable("graph", Graph)
+        inputs = (Variable("study", Study),)
+        outputs = (Variable("graph", Graph),)
 
         def run(self, value: Study) -> Graph:
             return Graph(n=99)

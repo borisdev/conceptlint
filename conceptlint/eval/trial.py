@@ -120,6 +120,13 @@ def comparable(a: Result, b: Result) -> bool:
             == (b.metric, b.corpus_digest, b.judge, b.rubric))
 
 
+def _render_shape(shape: tuple[tuple[type, ...], tuple[type, ...]]) -> str:
+    """`(str, int) -> (dict,)` — readable in an error a human has to act on."""
+    ins, outs = shape
+    fmt = lambda ts: "(" + ", ".join(getattr(t, "__name__", str(t)) for t in ts) + ")"  # noqa: E731
+    return f"{fmt(ins)} -> {fmt(outs)}"
+
+
 # ── the trial ─────────────────────────────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -161,7 +168,10 @@ class AIEvalTrial(Concept):
         if len(shapes) > 1:
             raise TrialError(
                 f"trial {self.name!r}: arms must share one shape, got "
-                f"{sorted(str((i.__name__, o.__name__)) for i, o in shapes)}")
+                # A shape is now (input types, output types) — TUPLES, since P-Plan puts no
+                # cardinality on hasInputVar/hasOutputVar. `.__name__` on the old scalar form
+                # raised AttributeError here the moment the DAG correction landed.
+                f"{sorted(_render_shape(s) for s in shapes)}")
 
         names = [a.name for a in self.arms]
         if len(set(names)) != len(names):
