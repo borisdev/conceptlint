@@ -1,6 +1,6 @@
 [project]
 name = "conceptlint"
-version = "0.3.0"
+version = "0.3.1"
 description = "Keeps human-agent development semantically precise, so coherent domain type systems can be built without semantic drift"
 license = "MIT"
 readme = "README.md"

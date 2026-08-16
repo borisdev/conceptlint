@@ -200,3 +200,17 @@ def test_a_runtime_object_appended_to_a_plan_is_caught(tmp_path: pathlib.Path) -
     root = _write(tmp_path, "plan.steps.append(Activity(started_at=now))\n")
     issues = list(PlanTimeOnly([root]).check([Activity, Entity]))
     assert issues and "Activity" in issues[0].message
+
+
+def test_the_retired_names_raise_instead_of_silently_emptying_the_plan() -> None:
+    """A Step still declaring `consumes`/`produces` used to import fine and mean nothing.
+
+    Observed downstream the moment v0.3.0 landed: nobsmed's two arms both became `shape=((), ())`
+    — no inputs, no outputs — and `check_arms` happily agreed the two empty shapes matched. The
+    rename had removed the meaning without removing the syntax.
+
+    A retired name that still parses is worse than one that breaks the import, because the first
+    reports success.
+    """
+    with pytest.raises(TypeError, match="retired"):
+        type("Old", (Step,), {"consumes": Variable("a", Study), "produces": Variable("b", Graph)})

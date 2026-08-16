@@ -58,8 +58,24 @@ class Step(Generic[InputT, OutputT]):
     #: p-plan:hasOutputVar — 0..N.
     outputs: ClassVar[tuple[Variable[Any], ...]] = ()
 
+    #: The names this class used before 2026-08-16. A Step still declaring them is not a Step with
+    #: an extra attribute — it is a Step whose inputs and outputs silently default to (), which
+    #: makes its Plan report no ports and `check_arms` agree that two empty shapes match.
+    #:
+    #: Observed downstream the moment v0.3.0 landed: both nobsmed arms became `shape=((), ())` and
+    #: nothing raised. A retired name that still parses is worse than one that breaks the import.
+    _RETIRED: ClassVar[dict[str, str]] = {"consumes": "inputs", "produces": "outputs"}
+
     def __init_subclass__(cls, **kw: Any) -> None:
         super().__init_subclass__(**kw)
+        for old, new in cls._RETIRED.items():
+            if old in cls.__dict__:
+                raise TypeError(
+                    f"{cls.__name__}.{old} is retired — use `{new}`, a TUPLE of Variables. "
+                    f"p-plan:has{'Input' if old == 'consumes' else 'Output'}Var carries no "
+                    f"cardinality restriction, so a Step has 0..N of each. Leaving `{old}` in place "
+                    f"does not error at import: `{new}` defaults to () and the Plan reports no "
+                    f"ports at all.")
         for field in ("inputs", "outputs"):
             value = getattr(cls, field, ())
             if isinstance(value, Variable):
