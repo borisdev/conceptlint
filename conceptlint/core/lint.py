@@ -24,6 +24,10 @@ from typing import Iterable, Sequence
 
 from conceptlint.core.concept import Concept, declared
 from conceptlint.core.invariant import ConceptIssue, Invariant, registered
+# ⚠️ Imported for its SIDE EFFECT. Registration is subclassing, so an Invariant in a module
+# nobody imports does not exist — and `GroundedCitation` silently not running is precisely
+# the shape of bug it was written to catch. noqa: it is not unused, it is the registration.
+from conceptlint.ontologies import invariants as _ontology_invariants  # noqa: F401
 
 _WORD = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
 

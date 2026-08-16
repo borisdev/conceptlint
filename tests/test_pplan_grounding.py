@@ -181,3 +181,68 @@ def test_our_plan_does_not_assume_a_linear_chain():
 def test_we_model_multistep():
     import conceptlint.dataflow as df
     assert hasattr(df, "MultiStep")
+
+
+# --- the invariant, and the trap it fell into ----------------------------------------------------
+
+
+def test_grounded_citation_is_registered_with_the_other_invariants():
+    """⚠️ Registration is SUBCLASSING, so an Invariant in an unimported module does not exist.
+
+    `GroundedCitation` was written, wired to nothing, and would have reported green forever —
+    the exact failure it exists to catch, in the code catching it. `core/lint.py` imports the
+    module for its side effect; this asserts the import is still there.
+    """
+    import conceptlint.core.lint  # noqa: F401 — the import IS the registration
+    from conceptlint.core.invariant import registered
+
+    assert "grounded-citation" in {i.ID for i in registered()}
+
+
+def test_grounded_citation_reports_a_term_that_does_not_exist():
+    from conceptlint.ontologies.invariants import GroundedCitation
+
+    # ⚠️ NOT a Concept subclass. Registration is subclassing, so declaring one here would leak into
+    # `declared()` for every test that ran afterwards — which is exactly what it did: this file
+    # passed alone and failed in the suite. Same trap the Invariant registry hit once already.
+    class Fabricated:
+        ONTOLOGY_IRI = "http://purl.org/net/p-plan#Workflow"
+
+    issues = list(GroundedCitation().check([Fabricated]))
+    assert issues and "not a term" in issues[0].message
+
+
+def test_an_unvendored_ontology_is_reported_not_silently_passed():
+    """"We cannot check this" and "this is fine" must never render the same."""
+    from conceptlint.ontologies.invariants import GroundedCitation
+
+    class Elsewhere:                      # plain class, for the reason above
+        ONTOLOGY_IRI = "http://schema.org/Thing"
+
+    issues = list(GroundedCitation().check([Elsewhere]))
+    assert issues and "not vendored" in issues[0].message
+
+
+def test_every_real_citation_in_this_package_resolves():
+    """The shipped vocabulary, checked against the shipped ontologies."""
+    from conceptlint.core.concept import declared
+    from conceptlint.ontologies import pplan  # noqa: F401
+    from conceptlint.ontologies.invariants import GroundedCitation
+    import conceptlint.ontologies.pplan.concepts  # noqa: F401
+
+    # Filtered to concepts DECLARED IN THIS PACKAGE. Without it the assertion is at the mercy of
+    # whatever any other test subclassed, and a global registry makes that action at a distance.
+    concepts = [c for c in declared()
+                if getattr(c, "__module__", "").startswith("conceptlint.")]
+    assert concepts, "no Concepts registered — this guard would be checking nothing"
+    assert [c for c in concepts if getattr(c, "ONTOLOGY_IRI", "")], "no citations to check"
+    assert list(GroundedCitation().check(concepts)) == []
+
+
+def test_both_vendored_ontologies_parse_to_real_terms():
+    """An HTML error page saved as .ttl parses to zero terms and passes everything vacuously."""
+    from conceptlint.ontologies.invariants import ONTOLOGIES, terms_in
+
+    for prefix, rel in ONTOLOGIES.items():
+        found = terms_in(rel)
+        assert len(found) > 10, f"{prefix} -> {rel} yielded {len(found)} terms; is it really RDF?"

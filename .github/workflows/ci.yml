@@ -1,0 +1,59 @@
+name: CI
+
+# ⚠️ This repo had NO CI until 2026-08-16. 109 tests ran only when someone ran them by hand, in a
+# package whose entire pitch is that a convention nobody checks drifts back within a month. The
+# linter was the least-checked thing in it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: tests + conceptlint on itself
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --all-extras
+
+      - name: Tests
+        run: uv run pytest -q
+
+      # Dogfood. If this tool cannot survive being pointed at its own source, it has no business
+      # being pointed at anyone else's.
+      #
+      # `conceptlint/` and not `.` on purpose: evals/minimal/ holds deliberate before/after pairs,
+      # so linting them measures the fixtures rather than the code. Measured — 5 findings against
+      # `.`, 3 against the package, and both extras were eval twins.
+      - name: conceptlint on itself
+        run: |
+          BASELINE=$(grep -vE '^\s*(#|$)' .conceptlint-baseline | head -1)
+
+          # Capture, THEN count. Piping straight into `grep -c ... || true` is how the same gate in
+          # nobsmed reported "findings: 0, baseline: 75" off a usage message and went green.
+          set +e
+          # --import, or `declared()` returns [] and grounded-citation checks NOTHING while
+          # reporting green. Registration is subclassing, so a Concept in an unimported
+          # module does not exist — measured: without this the concept list was empty.
+          OUT=$(uv run conceptlint conceptlint/ \
+                  --import conceptlint.ontologies.pplan.concepts 2>&1); RC=$?
+          set -e
+          FOUND=$(printf '%s\n' "$OUT" | grep -cE '^(near-duplicate-model|overloaded|drift|grounded-citation):')
+          if [ "$RC" -ne 0 ] && [ "$FOUND" -eq 0 ]; then
+            echo "::error::conceptlint failed to run — this gate was measuring nothing."
+            printf '%s\n' "$OUT" | tail -20
+            exit 1
+          fi
+          echo "findings: $FOUND   baseline: $BASELINE"
+          printf '%s\n' "$OUT" | grep -E '^(near-duplicate-model|overloaded|drift|grounded-citation):' || true
+          if [ "$FOUND" -gt "$BASELINE" ]; then
+            echo "::error::self-lint findings rose from $BASELINE to $FOUND"
+            exit 1
+          fi
+
+      # A separate step so a broken CITATION is never mistaken for a failing unit test. This is the
+      # check that did not exist when `Step` cited p-plan#Step while implementing something P-Plan
+      # does not describe.
+      - name: Ontology grounding
+        run: uv run pytest tests/test_pplan_grounding.py -q

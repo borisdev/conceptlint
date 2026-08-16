@@ -1,0 +1,17 @@
+# What conceptlint finds in its OWN source. CI fails only if this rises.
+#
+# All three are the same real thing: a term declared twice, once as a P-Plan `Concept` in
+# ontologies/pplan/concepts.py and once as the Python implementation in dataflow/.
+#
+#   Step      dataflow/step.py:23        <-> ontologies/pplan/concepts.py:40
+#   Activity  dataflow/execution.py:92   <-> ontologies/pplan/concepts.py:68
+#   Entity    dataflow/execution.py:78   <-> ontologies/pplan/concepts.py:81
+#
+# Not noise. `from conceptlint.dataflow import Step` and `from ...pplan.concepts import Step` give
+# you different objects under one name — the overload this tool exists to report, reported about
+# itself. That is the strongest evidence the check works.
+#
+# Left standing on purpose: the P-Plan correction should resolve it by making concepts.py the single
+# declaration, rather than by silencing the finding. Fixing it before that lands would rename the
+# same thing twice.
+3
