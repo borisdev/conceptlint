@@ -102,6 +102,29 @@ validate + visualize + inspect
 agent writes code against the Plan
 ```
 
+## When the Plan won't let you do it
+
+A constraint that only ever says *no* gets deleted. So the useful half of the rule is what to do
+instead, in order:
+
+```
+1. reuse an existing type
+2. adapt
+3. compose
+4. refine — declare the subtype relationship explicitly
+5. keep the representation private to your implementation
+6. only then, evolve the shared types
+```
+
+⚠️ **A real use-case blocker is evidence the shared types should change. An agent's implementation
+convenience is not.** The test is whether anything other than the current diff gets worse if you
+refuse.
+
+A Step you cannot express cleanly is information before it is an obstacle. This package's own
+`Step[InputT, OutputT]` — one input, one output — died to a real builder whose step needed the
+paste, the extracted questions **and** the screened papers at once. Routing around that would have
+hidden the fact that the signature was wrong.
+
 ## The logical process first, the runtime later — or never
 
 ```
@@ -180,7 +203,7 @@ decoration with the authority of a fact.
 ## Status — honest
 
 **Works today:** typed Plans, the four invariant categories, `render_mermaid`, P-Plan/PROV-O
-grounding with vendored ontologies, 114 tests.
+grounding with vendored ontologies, 116 tests.
 
 **Not built:** execution adapters (Temporal, LangGraph), persistence, retries, scheduling, embedding
 based similarity, and agent-hook integration. The pattern above describes what the artifact is
