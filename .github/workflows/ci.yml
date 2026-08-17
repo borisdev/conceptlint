@@ -26,7 +26,7 @@ jobs:
       # `conceptlint/` and not `.` on purpose: evals/minimal/ holds deliberate before/after pairs,
       # so linting them measures the fixtures rather than the code. Measured — 5 findings against
       # `.`, 3 against the package, and both extras were eval twins.
-      - name: conceptlint on itself
+      - name: lint plan_types with itself
         run: |
           BASELINE=$(grep -vE '^\s*(#|$)' .conceptlint-baseline | head -1)
 
@@ -36,8 +36,7 @@ jobs:
           # --import, or `declared()` returns [] and grounded-citation checks NOTHING while
           # reporting green. Registration is subclassing, so a Concept in an unimported
           # module does not exist — measured: without this the concept list was empty.
-          OUT=$(uv run conceptlint conceptlint/ \
-                  --import conceptlint.ontologies.pplan.concepts 2>&1); RC=$?
+          OUT=$(uv run conceptlint plan_types/ 2>&1); RC=$?
           set -e
           FOUND=$(printf '%s\n' "$OUT" | grep -cE '^(near-duplicate-model|overloaded|drift|grounded-citation):')
           if [ "$RC" -ne 0 ] && [ "$FOUND" -eq 0 ]; then
