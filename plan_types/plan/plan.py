@@ -42,6 +42,7 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Sequence
 
 from plan_types.plan.step import Step
+from plan_types.plan.service import Service
 from plan_types.plan.variable import Variable
 
 
@@ -76,6 +77,11 @@ class Plan:
     #: Left empty, the invariant reports NOT CHECKED rather than passing. A skipped check must
     #: never render as a passing one.
     declared_inputs: tuple[Variable[Any], ...] = ()
+
+    #: Every Service any Step may reference. Top-level declaration is MANDATORY, exactly as
+    #: docker-compose requires for a named volume: a Step using something absent from this tuple is
+    #: a violation, so one word cannot come to mean three things.
+    services: tuple[Service, ...] = ()
 
     #: p-plan:Plan — checked against the vendored ontology by the provenance invariants.
     ONTOLOGY_IRI: ClassVar[str] = "http://purl.org/net/p-plan#Plan"
@@ -122,6 +128,19 @@ class Plan:
         consumed = {v for s in self.steps for v in s.inputs}
         return tuple(v for v in self.variables if v not in consumed
                      and any(v in s.outputs for s in self.steps))
+
+    @property
+    def used_services(self) -> tuple[Service, ...]:
+        """Every Service the Steps actually reference, first-seen order.
+
+        Compare against `services` to find both failure directions: a Step reaching for something
+        undeclared, and a declaration nothing uses.
+        """
+        seen: dict[Service, None] = {}
+        for s in self.steps:
+            for svc in getattr(s, "uses", ()):
+                seen.setdefault(svc, None)
+        return tuple(seen)
 
     def shape(self) -> tuple[tuple[type, ...], tuple[type, ...]]:
         """The Plan's contract: `(input types, output types)`, sorted by Variable name.

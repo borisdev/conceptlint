@@ -34,6 +34,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar, Generic, TypeVar
 
+from plan_types.plan.service import Service
 from plan_types.plan.variable import Variable
 
 InputT = TypeVar("InputT")
@@ -57,6 +58,11 @@ class Step(Generic[InputT, OutputT]):
 
     #: p-plan:hasOutputVar — 0..N.
     outputs: ClassVar[tuple[Variable[Any], ...]] = ()
+
+    #: Services this Step needs REACHABLE. Not values, not edges — see `service.py`. Every entry
+    #: must appear in the owning Plan's `services`, enforced by `topology.declared_services`,
+    #: which is the docker-compose property that stops the name meaning three things.
+    uses: ClassVar[tuple["Service", ...]] = ()
 
     #: The names this class used before 2026-08-16. A Step still declaring them is not a Step with
     #: an extra attribute — it is a Step whose inputs and outputs silently default to (), which
