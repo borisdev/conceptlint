@@ -189,7 +189,7 @@ based similarity, and agent-hook integration. The pattern above describes what t
 Not on PyPI. From source:
 
 ```bash
-git clone https://github.com/borisdev/conceptlint && cd conceptlint && uv sync
+git clone https://github.com/borisdev/plan-types && cd plan-types && uv sync
 uv run pytest -q
 ```
 
