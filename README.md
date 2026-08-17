@@ -1,10 +1,10 @@
 # PlanTypes
 
-**From Plan Mode to Plan Types.**
+**From Claude Code Plan Mode to Plan Types.**
 
 Turn an agent's plan into a typed process specification — one you can validate, draw, and hold it to.
 
-Plan Mode says *"here's what I intend to do."* It's prose, it's gone when the conversation moves on,
+Claude Code's Plan Mode says *"here's what I intend to do."* It's prose, it's gone when the conversation moves on,
 and nothing checks that the code matches it. PlanTypes makes the same intent an artifact:
 
 ```
