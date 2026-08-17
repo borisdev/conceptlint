@@ -66,9 +66,6 @@ moves, and nothing tells you.
 
 ![Rube Goldberg's Self-Operating Napkin, 1931 — public domain](https://upload.wikimedia.org/wikipedia/commons/a/a9/Rube_Goldberg%27s_%22Self-Operating_Napkin%22_%28cropped%29.gif)
 
-Goldberg drew his machine, which is why its shape is obvious. Software built by conversation with an
-agent is assembled the same way — one reasonable step at a time — and never drawn.
-
 **→ [Design notes](docs/design.md)** — why the types are shaped this way, and the failure behind
 each invariant.
 
