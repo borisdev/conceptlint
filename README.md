@@ -69,6 +69,9 @@ moves, and nothing tells you.
 Goldberg drew his machine, which is why its shape is obvious. Software built by conversation with an
 agent is assembled the same way — one reasonable step at a time — and never drawn.
 
+**→ [Design notes](docs/design.md)** — why the types are shaped this way, and the failure behind
+each invariant.
+
 The workflow that motivates it:
 
 > A developer builds substantial software architecture mostly through conversation with a coding
