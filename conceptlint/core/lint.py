@@ -243,13 +243,26 @@ def main(argv: list[str] | None = None) -> int:
     # Ordinary Pydantic models — no base class required. This is the DEFAULT surface: every repo
     # has models long before it has declared Concepts, and requiring declarations first is the
     # "annotate your whole codebase" tax nobody pays.
+    from plan_types.invariants.naming.ambiguous_reference import AMBIGUOUS_REFERENCE
+    from plan_types.invariants.naming.naming_drift import NAMING_DRIFT
     from plan_types.naming.records import discover_models, near_duplicates, overloaded
+
+    # ⚠️ The finding NAMES come from the SemanticInvariant ids, never hand-written here. This CLI
+    # and `plan_types.invariants` are two surfaces on ONE engine, and until 2026-08-17 they called
+    # the same two findings different things — `overloaded` vs `naming.ambiguous_reference`. A tool
+    # whose pitch is "one concept, one name" shipping its own findings under two names.
+    #
+    # `STALE_DEFINITION` is deliberately NOT `naming.naming_drift`. Two different accusations:
+    #   naming.naming_drift      two CLASSES that mean the same thing
+    #   naming.stale_definition  ONE class whose shape moved while its docstring did not
+    # Collapsing them would be the exact merge this linter exists to prevent.
+    STALE_DEFINITION = "naming.stale_definition"
 
     found_models = discover_models(args.path)
 
     for first, second in overloaded(found_models):
         issues.append(ConceptIssue(
-            "overloaded",
+            AMBIGUOUS_REFERENCE.id,
             f"{first.name} is declared twice with different shapes",
             [f"{first.name} ({first.file}:{first.line})",
              f"{second.name} ({second.file}:{second.line})"],
@@ -263,7 +276,7 @@ def main(argv: list[str] | None = None) -> int:
         what = (f"{score:.0%} of their fields" if signal == "fields"
                 else f"{score:.0%} of their stated meaning — {first.definition!r}")
         issues.append(ConceptIssue(
-            "near-duplicate-model",
+            NAMING_DRIFT.id,
             f"{first.name} and {second.name} share a head noun and {what}",
             [f"{first.name} ({first.file}:{first.line})",
              f"{second.name} ({second.file}:{second.line})"],
@@ -275,7 +288,7 @@ def main(argv: list[str] | None = None) -> int:
     from conceptlint.drift import drifted
     for d in drifted(args.path, since=args.since):
         issues.append(ConceptIssue(
-            "drift",
+            STALE_DEFINITION,
             f"{d.name} changed shape while its docstring stayed the same",
             [f"{d.name} ({d.file}:{d.line})"],
             "update the docstring if the meaning changed, or move the new fields to the "
