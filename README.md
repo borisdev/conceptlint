@@ -64,6 +64,18 @@ moves, and nothing tells you.
 
 ## Why this exists
 
+![Rube Goldberg's Self-Operating Napkin, 1931 — public domain](https://upload.wikimedia.org/wikipedia/commons/a/a9/Rube_Goldberg%27s_%22Self-Operating_Napkin%22_%28cropped%29.gif)
+
+Goldberg's machine is fully drawn. Every step is labeled A through M and every connection can be
+traced, which is why its shape is obvious at a glance.
+
+Software built through conversation with an agent is assembled the same way — one reasonable step
+at a time. It is never drawn. The steps are in the code, the shape is in nobody's head, and there
+is no picture to disagree with.
+
+This is not an argument for fewer steps. Some processes need seven. It is an argument for being
+able to see the seven.
+
 The workflow that motivates it:
 
 > A developer builds substantial software architecture mostly through conversation with a coding
