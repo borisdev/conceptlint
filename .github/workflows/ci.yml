@@ -9,6 +9,20 @@ on:
   pull_request:
 
 jobs:
+  wheel:
+    name: the built wheel imports
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build --wheel -o dist/
+      - name: Import every shipped package from the wheel, outside the source tree
+        run: |
+          set -euo pipefail
+          cd "$(mktemp -d)"
+          uv run --isolated --no-project --with "$GITHUB_WORKSPACE"/dist/*.whl \
+            python3 "$GITHUB_WORKSPACE/scripts/check_wheel.py"
+
   test:
     name: tests + conceptlint on itself
     runs-on: ubuntu-latest
