@@ -6,32 +6,7 @@ it is inconvenient.
 
 ---
 
-## 1. A Plan is not a DAG
-
-The obvious modelling choice is a directed acyclic graph, and it is wrong as an *identity*.
-
-Acyclicity is a **property some plans have**, not what a plan *is*. Bake it into the type and you
-have ruled out every iterative process — refine-until-converged, retry-with-a-different-query,
-anything with a feedback edge — before anyone asked for one. [P-Plan][pplan] has no acyclicity
-axiom either; `isPrecededBy` is merely transitive.
-
-So `Plan.__post_init__` refuses only genuinely incoherent input — a class where an instance belongs,
-a runtime object in a plan-time container. It does **not** topologically sort. If you want
-acyclicity, you opt in:
-
-```python
-validate(plan, [topology.ACYCLIC])
-```
-
-`execution_order()` is a separate function that raises on a cycle, because *asking for a linear
-order* is where a cycle actually becomes a problem — not at construction.
-
-**The general form:** the type refuses what is meaningless. An invariant refuses what is merely
-wrong. Collapsing those two is how a type system starts making decisions nobody delegated to it.
-
----
-
-## 2. Plan-time and runtime are different things
+## 1. Plan-time and runtime are different things
 
 ```
 p-plan:Step      the intended operation        prov:Activity    one execution of it
@@ -70,7 +45,7 @@ wrong"* and *"that run failed"* become the same sentence with opposite fixes.
 
 ---
 
-## 3. The four categories, and the failure each came from
+## 2. The four categories, and the failure each came from
 
 Not one vague "linting" subsystem. Four kinds of wrong, because they are found differently.
 
@@ -117,7 +92,7 @@ See §5.
 
 ---
 
-## 4. `declared_inputs`, and why a rule that cannot fire is worse than no rule
+## 3. `declared_inputs`, and why a rule that cannot fire is worse than no rule
 
 `topology.bound_inputs` should report a Step consuming a Variable nothing produces. The first
 version derived the Plan's inputs — *"consumed here, produced by nothing here"*. Which means:
@@ -144,57 +119,7 @@ Both real consumer arms hit exactly this on adoption day. The rule told them why
 
 ---
 
-## 5. Ontology grounding, and the rule that reads the source
-
-A class can declare where its meaning comes from:
-
-```python
-class Step:
-    ONTOLOGY_IRI = "http://purl.org/net/p-plan#Step"
-```
-
-That is a **citation**, and the failure it caused happened in this package. The IRI was written
-**from memory**, and `Step` was then given exactly one input and one output — while P-Plan puts
-**no cardinality at all** on `hasInputVar` / `hasOutputVar`:
-
-```turtle
-:hasInputVar  a owl:ObjectProperty ;
-              rdfs:domain :Step ;
-              rdfs:range  :Variable .
-```
-
-That is the entire definition. Nobody lied. The IRI looked authoritative and **no mechanism could
-disagree with it.**
-
-Two consequences worth separating:
-
-- **We tightened what the ontology leaves free.** A real consumer's step needed three inputs at
-  once — the paste, the extracted questions, and the screened papers. The cited-but-wrong signature
-  could not express it.
-- **We missed the one thing the ontology does constrain.** `isOutputVarOf` is functional. That is
-  now `topology.single_producer`, and we did not have it.
-
-So `provenance.grounded_citation` reads the vendored Turtle and fails when a cited term is not in
-it. What it can and cannot decide, stated plainly:
-
-```
-can     the cited term EXISTS in an ontology we have vendored
-cannot  the cited term MEANS what our implementation does
-```
-
-The second is a reading, not a decision procedure. A rule pretending otherwise would be judgement
-dressed as a check — so that half lives in `tests/test_pplan_grounding.py`, which asserts the
-specific axioms the design depends on.
-
-⚠️ A citation to an ontology we have **not** vendored is REPORTED, not ignored. *"We cannot check
-this"* and *"this is fine"* must never render the same.
-
-**On conflict, the ontology wins.** Two honest moves: change the code to match, or delete the IRI
-and own the design as ours. Never keep the citation and relax the check that caught the mismatch.
-
----
-
-## 6. NOT CHECKED is not a pass
+## 4. NOT CHECKED is not a pass
 
 The rule that shapes every check in the package.
 
@@ -214,7 +139,7 @@ can cause three findings, and seeing all three is how you tell one root cause fr
 
 ---
 
-## 7. When the Plan won't let you do it
+## 5. When the Plan won't let you do it
 
 A constraint that only says *no* gets deleted. The order:
 
@@ -237,7 +162,7 @@ information.**
 
 ---
 
-## 8. Do not build ahead of a user
+## 6. Do not build ahead of a user
 
 Three abstractions were declared here before anything used them; one never existed outside a
 docstring. **An abstraction with no caller is speculation with tests.**
@@ -248,7 +173,7 @@ they stay that way until something needs to execute a Plan.
 
 ---
 
-## 9. The failure this package still had to learn
+## 7. The failure this package still had to learn
 
 Worth recording, because it is the one the tests could not catch.
 
@@ -258,7 +183,20 @@ wheel built from HEAD contained neither module: `plan_types` was never listed in
 throughout**, because they import from the working tree and never from a built artifact.
 
 The general lesson, and it generalises past packaging: **a test that does not exercise the artifact
-you ship is testing something you do not ship.** Same shape as §4 — the check ran, went green, and
+you ship is testing something you do not ship.** Same shape as §3 — the check ran, went green, and
 touched nothing that could break.
+
+⚠️ The tempting fix is the wrong one. *"Just use an editable install of HEAD"* is what **hid** this:
+editable puts the source tree on `sys.path`, so `packages = [...]` is never consulted and the module
+imports whatever the build config says. Proof, same commit, two install methods:
+
+```
+git install of v0.3.1   →  plan_types: MISSING
+same tree, imported     →  plan_types: FOUND
+```
+
+Nor does *"always install from HEAD"* help — `uv add git+https://...` still builds the package
+through `pyproject.toml`, and CI and containers have no sibling checkout to point at. Editable is
+right for local dev. It must not be the only install anything is tested against.
 
 [pplan]: http://purl.org/net/p-plan#
