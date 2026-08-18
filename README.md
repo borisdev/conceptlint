@@ -69,6 +69,9 @@ moves, and nothing tells you.
 **→ [Design notes](docs/design.md)** — why the types are shaped this way, and the failure behind
 each invariant.
 
+**→ [The counterfactual question](docs/counterfactual.md)** — what to answer before adding a
+component, and the threshold that deleted the right answers for eighteen hours.
+
 The workflow that motivates it:
 
 > A developer builds substantial software architecture mostly through conversation with a coding
