@@ -24,7 +24,7 @@ def test_both_runtimes_agree() -> None:
     for strategy in (terse, warm):
         local = execute(plan, {"user": reader}, LocalRunner(strategy))["email"]
         graph = to_pydantic_graph(plan, strategy)
-        assert asyncio.run(graph.run(inputs={"user": reader}))["email"] == local
+        assert asyncio.run(graph.run(state={}, inputs={"user": reader}))["email"] == local
 
 
 def test_the_demo_runs() -> None:
@@ -111,22 +111,69 @@ def test_the_diagrams_differ_only_in_the_implementation_labels() -> None:
     assert len(set(renders)) == len(ARMS), "the arms rendered identically — labels missing"
 
 
-def test_stage3_variants_and_control_arm_agree() -> None:
+def test_stage3_and_the_control_arm_agree() -> None:
     """The comparison is only worth reading if both arms compute the same thing."""
     from examples.pydantic_graph_docs import control_no_plan as ctrl
-    from examples.pydantic_graph_docs import stage3_variants as s3
+    from examples.pydantic_graph_docs import stage3_map_join as s3
     from plan_types.execution import LocalRunner, execute
 
     for case in s3.CORPUS:
-        with_plan = [execute(p, {"numbers": case}, LocalRunner(s3.STRATEGY))["total"]
-                     for p in s3.VARIANTS.values()]
-        control = [asyncio.run(build().run(inputs=case)) for build in ctrl.VARIANTS.values()]
+        with_plan = [execute(s3.plan, {"numbers": case}, LocalRunner(a))["total"]
+                     for a in s3.ARMS.values()]
+        control = [asyncio.run(build().run(inputs=case)) for build in ctrl.ARMS.values()]
         assert with_plan == control, f"arms disagree on {case}: {with_plan} vs {control}"
 
 
-def test_the_three_variants_share_one_contract() -> None:
-    """`check_arms` is what makes stage 3's eval table legal rather than merely printed."""
-    from plan_types import check_arms
-    from examples.pydantic_graph_docs.stage3_variants import VARIANTS
+def test_stage3_runs() -> None:
+    from examples.pydantic_graph_docs import stage3_map_join as s3
 
-    check_arms(list(VARIANTS.values()))
+    asyncio.run(s3.main())
+
+
+def test_a_mapped_step_gives_their_documented_answer() -> None:
+    """Their docs print `Results: [1, 4, 9, 16, 25]`. Both our runtimes must too — and the
+    compiled one gets there through their real `.map()` and join, not a loop wearing the name."""
+    from examples.pydantic_graph_docs.stage3_map_join import ARMS, plan
+    from plan_types.execution import LocalRunner, execute
+    from plan_types.execution.pydantic_graph import to_pydantic_graph
+
+    case = {"numbers": [1, 2, 3, 4, 5]}
+    assert execute(plan, case, LocalRunner(ARMS["exact"]))["squares"] == [1, 4, 9, 16, 25]
+    compiled = asyncio.run(to_pydantic_graph(plan, ARMS["exact"]).run(state={}, inputs=case))
+    assert compiled["squares"] == [1, 4, 9, 16, 25]
+
+
+def test_a_mapped_step_is_an_ordinary_node_to_every_invariant() -> None:
+    """Why `map_over` went into `wired_inputs` instead of into each invariant.
+
+    The Plan sees `numbers -> Square -> squares`; only the runner sees the per-item call. The ITEM
+    Variable must never surface as a Plan port, or every topology rule would need to learn about
+    mapping and they would each learn it slightly differently.
+    """
+    from plan_types import validate
+    from plan_types.invariants import topology, typing as typing_inv
+    from examples.pydantic_graph_docs.stage3_map_join import numbers, plan, squares
+
+    assert validate(plan, [*topology.ALL, *typing_inv.ALL]) == []
+    assert [v.name for v in plan.inputs] == ["numbers"]
+    assert numbers in plan.variables and squares in plan.variables
+    assert "number" not in [v.name for v in plan.variables], "the ITEM is not a Plan port"
+
+
+def test_a_mapped_step_must_be_the_per_item_operation() -> None:
+    """A mapped fan-in has no meaning: there is no second list to zip against."""
+    from plan_types import Step, Variable
+
+    xs, x, y, ys = (Variable("xs", list), Variable("x", int),
+                    Variable("y", int), Variable("ys", list))
+    other = Variable("other", int)
+
+    with pytest.raises(TypeError, match="exactly one input"):
+        class TwoIn(Step):
+            inputs, outputs = (x, other), (y,)
+            map_over = (xs, ys)
+
+    with pytest.raises(TypeError, match="names the LIST"):
+        class Confused(Step):
+            inputs, outputs = (xs,), (y,)
+            map_over = (xs, ys)

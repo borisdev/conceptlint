@@ -119,7 +119,7 @@ async def main() -> None:
         local = execute(plan, {"user": reader}, LocalRunner(strategy))["email"]
 
         graph = to_pydantic_graph(plan, strategy)
-        on_graph = (await graph.run(inputs={"user": reader}))["email"]
+        on_graph = (await graph.run(state={}, inputs={"user": reader}))["email"]
 
         assert local == on_graph, (
             f"{arm}: the two runtimes disagreed — {local!r} vs {on_graph!r}. That would mean the "

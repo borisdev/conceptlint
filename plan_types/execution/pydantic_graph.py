@@ -46,7 +46,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from plan_types.execution.local import ExecutionError, _outputs_by_name
+from plan_types.execution.local import ExecutionError, _check_type, _outputs_by_name
 from plan_types.execution.strategy import Strategy, check_strategy
 from plan_types.plan.bindings import execution_order
 from plan_types.plan.plan import Plan
@@ -60,9 +60,26 @@ def to_pydantic_graph(plan: Plan, strategy: Strategy, *, name: str | None = None
 
     Raises BEFORE building rather than mid-run: an unbound Step or an uncallable signature is a fact
     about the Strategy, and discovering it inside a graph run would attribute it to the runtime.
+
+    ## Shape of the compiled graph
+
+    The Plan's environment — Variable name -> value — lives in their `state`, which is what state is
+    for and is how their own examples carry values that outlive one edge. Edges then carry only what
+    a `.map()` needs to fan out.
+
+        seed ──> step ──> step ──> ... ──> finish ──> end
+
+    A MAPPED Step compiles to their four-part fan-out, using their primitives, not a loop wearing
+    their name:
+
+        emit ──.map()──> <per-item step> ──> join(reduce_list_append) ──> store
+
+    So a Plan that declares `map_over` becomes an actually-parallel map on their engine, and the
+    same declaration is a sequential loop under `LocalRunner`. That is the split working: the Plan
+    says a fan-out exists; how many workers run it is the runtime's business.
     """
     try:
-        from pydantic_graph import GraphBuilder
+        from pydantic_graph import GraphBuilder, reduce_list_append
     except ImportError as exc:  # pragma: no cover - depends on the extra
         raise ExecutionError(
             "pydantic-graph is not installed. It is an OPTIONAL extra, on purpose: plan_types.plan "
@@ -77,58 +94,51 @@ def to_pydantic_graph(plan: Plan, strategy: Strategy, *, name: str | None = None
 
     _refuse_cycles_for_the_right_reason(plan)
     order = execution_order(plan)
-    builder = GraphBuilder(name=name or plan.name, input_type=dict, output_type=dict)
+    g = GraphBuilder(name=name or plan.name, state_type=dict, input_type=dict, output_type=dict)
 
-    steps = [_compile_step(builder, step, strategy, i) for i, step in enumerate(order)]
+    async def seed(ctx: Any) -> None:
+        ctx.state.update(ctx.inputs)
 
-    edges = [builder.edge_from(builder.start_node).to(steps[0])]
-    edges += [builder.edge_from(a).to(b) for a, b in zip(steps, steps[1:])]
-    edges.append(builder.edge_from(steps[-1]).to(builder.end_node))
-    builder.add(*edges)
-    return builder.build()
+    async def finish(ctx: Any) -> dict[str, Any]:
+        return dict(ctx.state)
+
+    seed_node = g.step(seed, label="seed")
+    finish_node = g.step(finish, label="finish")
+
+    edges = [g.edge_from(g.start_node).to(seed_node)]
+    previous: Any = seed_node
+
+    for i, step in enumerate(order):
+        cls = type(step)
+        if cls.map_over is None:
+            node = g.step(_plain(cls, strategy[cls], i), label=cls.__name__)
+            edges.append(g.edge_from(previous).to(node))
+            previous = node
+            continue
+
+        emit, per_item, store = _mapped(g, cls, strategy[cls], i)
+        collect = g.join(reduce_list_append, initial_factory=list)
+        edges += [
+            g.edge_from(previous).to(emit),
+            g.edge_from(emit).map().to(per_item),
+            g.edge_from(per_item).to(collect),
+            g.edge_from(collect).to(store),
+        ]
+        previous = store
+
+    edges += [g.edge_from(previous).to(finish_node), g.edge_from(finish_node).to(g.end_node)]
+    g.add(*edges)
+    return g.build()
 
 
-def _refuse_cycles_for_the_right_reason(plan: Plan) -> None:
-    """A cyclic Plan cannot compile — and the reason is NOT that toposort fails.
+def _plain(cls: Any, impl: Any, i: int) -> Any:
+    """An ordinary Step: read its inputs from state, write its outputs back.
 
-    `execution_order` would raise anyway, saying "there is no execution order to return", which
-    reads as a limitation of the algorithm. It is not. Given a perfect cyclic scheduler this would
-    still loop forever, because **a Plan does not say when to stop**: their `Feedback.run()` returns
-    `WriteEmail | End[Email]` and the predicate lives in the node body, where we cannot see it.
-
-    Fixing that means adding Decision/branch/End to the Plan layer, which is rebuilding what
-    GraphBuilder already owns and does well. The route that does not: collapse each strongly
-    connected component into a `MultiStep` — `p-plan:MultiStep`, a Plan that appears as a Step. An
-    SCC condensation is ALWAYS a DAG, so the outer Plan compiles, and the loop inside is handed to
-    their state machine, which is built for it. Not implemented; named here so the refusal points
-    somewhere rather than merely saying no.
+    Calls the same `_outputs_by_name` `LocalRunner` does, so a Step cannot mean one thing here and
+    another there — a second copy of that logic is a second thing to drift.
     """
-    from plan_types.plan.plan import PlanError
-
-    try:
-        execution_order(plan)
-    except PlanError as exc:
-        raise PlanError(
-            f"{exc} — and note the reason is NOT that this cannot be ordered. A Plan does not "
-            f"carry a termination predicate, so no scheduler could run it either: pydantic-graph "
-            f"puts that predicate in the node body (`-> Next | End[T]`), which is the right place "
-            f"for it and is theirs. An iterative region belongs in a MultiStep whose "
-            f"implementation is one of their graphs; the outer Plan is then a DAG and compiles."
-        ) from exc
-
-
-def _compile_step(builder: Any, step: Any, strategy: Strategy, i: int) -> Any:
-    """One PlanTypes Step -> one pydantic-graph step threading the environment through.
-
-    The closure is what makes the two runtimes agree: it calls the Strategy's implementation and
-    `_outputs_by_name` — exactly what `LocalRunner.run` does — rather than a second copy of that
-    logic which could drift.
-    """
-    cls = type(step)
-    impl = strategy[cls]
-
-    async def run_step(ctx: Any) -> dict[str, Any]:
-        env: dict[str, Any] = dict(ctx.inputs)
+    async def run_step(ctx: Any) -> None:
+        env = ctx.state
         missing = [v.name for v in cls.inputs if v.name not in env]
         if missing:
             raise ExecutionError(
@@ -139,7 +149,72 @@ def _compile_step(builder: Any, step: Any, strategy: Strategy, i: int) -> Any:
         if hasattr(result, "__await__"):
             result = await result  # async IS fine here — a graph run awaits. LocalRunner cannot.
         env.update(_outputs_by_name(cls, result))
-        return env
 
     run_step.__name__ = f"{cls.__name__}_{i}"
-    return builder.step(run_step, label=cls.__name__)
+    return run_step
+
+
+def _mapped(g: Any, cls: Any, impl: Any, i: int) -> tuple[Any, Any, Any]:
+    """`emit -> .map() -> per_item -> join -> store`, in their vocabulary.
+
+    `emit` puts the list on the edge, because `.map()` fans out an EDGE's value and our environment
+    lives in state. `store` puts the joined list back. Neither is a Step in the Plan — they are the
+    seam between our environment and their edges, and they exist because the two models differ, not
+    because the Plan has extra nodes in it.
+    """
+    source, collected = cls.map_over
+    item_var, out_var = cls.inputs[0], cls.outputs[0]
+
+    async def emit(ctx: Any) -> list:
+        items = ctx.state.get(source.name)
+        try:
+            return list(items)
+        except TypeError:
+            raise ExecutionError(
+                f"{cls.__name__} maps over {source.name!r}, which arrived as "
+                f"{type(items).__name__} and is not iterable.") from None
+
+    async def per_item(ctx: Any) -> Any:
+        out = impl(**{item_var.name: ctx.inputs})
+        if hasattr(out, "__await__"):
+            out = await out
+        _check_type(cls, out_var, out)
+        return out
+
+    async def store(ctx: Any) -> None:
+        ctx.state[collected.name] = list(ctx.inputs)
+
+    emit.__name__ = f"emit_{source.name}_{i}"
+    per_item.__name__ = f"{cls.__name__}_{i}"
+    store.__name__ = f"store_{collected.name}_{i}"
+    return (g.step(emit, label=f"map {source.name}"),
+            g.step(per_item, label=cls.__name__),
+            g.step(store, label=f"join -> {collected.name}"))
+
+
+def _refuse_cycles_for_the_right_reason(plan: Plan) -> None:
+    """A cyclic Plan cannot compile — and the reason is NOT that toposort fails.
+
+    `execution_order` raises anyway, saying "there is no execution order to return", which reads as
+    a limitation of the algorithm. It is not. Given a perfect cyclic scheduler this would still loop
+    forever, because **a Plan does not say when to stop**: their `Feedback.run()` returns
+    `WriteEmail | End[Email]` and the predicate lives in the node body, where we cannot see it.
+
+    Fixing that in general means adding Decision/branch/End here, which is rebuilding what
+    GraphBuilder already owns. The route that does not: collapse each strongly connected component
+    into a `MultiStep` and declare `until` — an SCC condensation is ALWAYS a DAG, so the outer Plan
+    compiles and the loop inside is theirs. Partly built: `MultiStep.until` exists, the condensation
+    does not.
+    """
+    from plan_types.plan.plan import PlanError
+
+    try:
+        execution_order(plan)
+    except PlanError as exc:
+        raise PlanError(
+            f"{exc} — and note the reason is NOT that this cannot be ordered. A Plan does not "
+            f"carry a termination predicate, so no scheduler could run it either: pydantic-graph "
+            f"puts that predicate in the node body (`-> Next | End[T]`), which is the right place "
+            f"for it and is theirs. An iterative region belongs in a MultiStep with `until` set, "
+            f"whose implementation is one of their graphs; the outer Plan is then a DAG."
+        ) from exc

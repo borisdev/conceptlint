@@ -104,8 +104,8 @@ async def main() -> None:
         print(f"  {str(case):<12} {expected:>9} " + " ".join(cells))
 
     print("\nand the winning arm compiled onto THEIR runtime, unchanged:")
-    graph = to_pydantic_graph(plan, ARMS["exact"])
-    got = (await graph.run(inputs={"numbers": [3, 20]}))["total"]
+    graph = to_pydantic_graph(plan, ARMS['exact'])
+    got = (await graph.run(state={}, inputs={"numbers": [3, 20]}))["total"]
     print(f"  pydantic-graph, numbers=[3, 20] -> {got}  (expected 409)")
     assert got == 409
 

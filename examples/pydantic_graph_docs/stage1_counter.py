@@ -89,7 +89,7 @@ async def main() -> None:
 
     theirs = await their_version()
     ours_local = execute(plan, {}, LocalRunner(strategy))["doubled"]
-    ours_on_their_runtime = (await to_pydantic_graph(plan, strategy).run(inputs={}))["doubled"]
+    ours_on_their_runtime = (await to_pydantic_graph(plan, strategy).run(state={}, inputs={}))["doubled"]
 
     print(f"  their GraphBuilder, hand-wired   {theirs}")
     print(f"  our Plan, LocalRunner            {ours_local}")

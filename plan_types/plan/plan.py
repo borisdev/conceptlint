@@ -41,7 +41,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, ClassVar, Sequence
 
-from plan_types.plan.step import Step
+from plan_types.plan.step import Step, wired_inputs, wired_outputs
 from plan_types.plan.service import Service
 from plan_types.plan.variable import Variable
 
@@ -106,7 +106,7 @@ class Plan:
         """Every Variable any Step consumes or produces, in first-seen order."""
         seen: dict[Variable[Any], None] = {}
         for s in self.steps:
-            for v in (*s.inputs, *s.outputs):
+            for v in (*wired_inputs(s), *wired_outputs(s)):
                 seen.setdefault(v, None)
         return tuple(seen)
 
@@ -118,16 +118,16 @@ class Plan:
         """
         if self.declared_inputs:
             return self.declared_inputs
-        produced = {v for s in self.steps for v in s.outputs}
+        produced = {v for s in self.steps for v in wired_outputs(s)}
         return tuple(v for v in self.variables if v not in produced
-                     and any(v in s.inputs for s in self.steps))
+                     and any(v in wired_inputs(s) for s in self.steps))
 
     @property
     def outputs(self) -> tuple[Variable[Any], ...]:
         """The Plan's TERMINAL variables — produced here, consumed by nothing here."""
-        consumed = {v for s in self.steps for v in s.inputs}
+        consumed = {v for s in self.steps for v in wired_inputs(s)}
         return tuple(v for v in self.variables if v not in consumed
-                     and any(v in s.outputs for s in self.steps))
+                     and any(v in wired_outputs(s) for s in self.steps))
 
     @property
     def used_services(self) -> tuple[Service, ...]:
