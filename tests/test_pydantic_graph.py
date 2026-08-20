@@ -12,7 +12,8 @@ import pytest
 
 pytest.importorskip("pydantic_graph", reason="optional extra: uv sync --extra pydantic-graph")
 
-from plan_types.execution import ExecutionError, LocalRunner, execute  # noqa: E402
+from plan_types.execution import (ExecutionError, LocalRunner, check_strategy,  # noqa: E402
+                                  execute)
 from plan_types.execution.pydantic_graph import to_pydantic_graph  # noqa: E402
 
 
@@ -67,3 +68,44 @@ def test_the_plan_layer_imports_no_execution_framework() -> None:
         source = path.read_text()
         for engine in ("pydantic_graph", "temporal", "langgraph"):
             assert engine not in source, f"{path.name} references {engine}"
+
+
+# ── the staged comparison against their docs (examples/pydantic_graph_docs/) ─────────────────────
+
+def test_stage1_their_docs_example_round_trips() -> None:
+    """Their `simple_counter.py` verbatim, our Plan, and our Plan on their runtime all give 2."""
+    from examples.pydantic_graph_docs import stage1_counter as s1
+
+    asyncio.run(s1.main())
+
+
+def test_stage2_three_strategies_over_one_plan() -> None:
+    from examples.pydantic_graph_docs import stage2_strategies as s2
+
+    asyncio.run(s2.main())
+
+
+def test_the_plan_object_is_shared_across_arms_not_copied() -> None:
+    """The claim an eval depends on: arms differ ONLY in the Strategy.
+
+    Identity, not equality — a Plan rebuilt per arm could drift a Step and still compare equal
+    under a weaker check, which is the failure `AIEvalTrial` exists to prevent.
+    """
+    from examples.pydantic_graph_docs.stage2_strategies import ARMS, plan
+
+    for strategy in ARMS.values():
+        assert check_strategy(plan, strategy) == ()
+    assert len({id(plan) for _ in ARMS}) == 1
+
+
+def test_the_diagrams_differ_only_in_the_implementation_labels() -> None:
+    """The visual claim, checked: strip the <i> labels and the three renders are byte-identical."""
+    import re
+
+    from plan_types import render_mermaid
+    from examples.pydantic_graph_docs.stage2_strategies import ARMS, plan
+
+    strip = lambda t: re.sub(r"<br/><i>[^<]+</i>", "", t)  # noqa: E731
+    renders = [render_mermaid(plan, s) for s in ARMS.values()]
+    assert len({strip(r) for r in renders}) == 1, "topology differed between arms"
+    assert len(set(renders)) == len(ARMS), "the arms rendered identically — labels missing"

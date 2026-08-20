@@ -41,16 +41,36 @@ def _node(plan: Plan, index: int) -> str:
     return f"{re.sub(r'[^A-Za-z0-9_]', '_', plan.name)}_{index}"
 
 
+def _impl_label(step: object, strategy: Any) -> str:
+    """The bound implementation's name, on a second line, or nothing.
+
+    ⚠️ Nothing when a Step is UNBOUND — deliberately not "unbound" or "?". A diagram that invents a
+    label for a Step nobody has implemented is asserting something about the Strategy; the absence
+    says only that this render was given no Strategy for it, which is the truth.
+    """
+    if strategy is None:
+        return ""
+    impl = strategy.get(type(step))
+    if impl is None:
+        return ""
+    return f"<br/><i>{getattr(impl, '__name__', repr(impl))}</i>"
+
+
 def _port(prefix: str, v: Variable[Any]) -> str:
     return f"{prefix}_{re.sub(r'[^A-Za-z0-9_]', '_', v.name)}"
 
 
-def render_mermaid(plan: Plan) -> str:
+def render_mermaid(plan: Plan, strategy: Any = None) -> str:
     """A mermaid `flowchart TD` of the Plan's actual structure.
 
     Free Variables enter as ports, terminal Variables leave as ports, and every internal arrow is
     a producer→consumer edge labelled with the Variable that flows. A Step with three inputs shows
     three arrows — which is the whole reason this reads from bindings rather than from step order.
+
+    Pass a `Strategy` and each node also names the implementation bound to it. Render the same Plan
+    under two Strategies and the diagrams are IDENTICAL except for those names — which is the claim
+    "the logical process was held constant, only the implementation changed", drawn instead of
+    asserted. A reader can check it by looking, which is not true of two hand-made diagrams.
     """
     idx = {id(s): i for i, s in enumerate(plan.steps)}
     lines = ["```mermaid", "flowchart TD"]
@@ -58,7 +78,7 @@ def render_mermaid(plan: Plan) -> str:
     for v in plan.inputs:
         lines.append(f'  {_port("IN", v)}(["{v.name}: {_type_name(v.type)}"])')
     for i, s in enumerate(plan.steps):
-        lines.append(f'  {_node(plan, i)}["{_label(s)}"]')
+        lines.append(f'  {_node(plan, i)}["{_label(s)}{_impl_label(s, strategy)}"]')
     for v in plan.outputs:
         lines.append(f'  {_port("OUT", v)}(["{v.name}: {_type_name(v.type)}"])')
 
