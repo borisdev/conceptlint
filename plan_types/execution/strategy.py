@@ -91,6 +91,8 @@ def _signature_findings(cls: type[Step], impl: Implementation) -> list[str]:
     is that renaming a Variable renames a parameter, and that cost is deliberate: it is visible
     here, at import, rather than at 3am as a value in the wrong slot.
     """
+    # `cls.inputs` deliberately, not the wired ports: a mapped Step's implementation is called
+    # with ONE ITEM, so its parameter is the item's name. The list never reaches it.
     wanted = [v.name for v in cls.inputs]
     try:
         sig = inspect.signature(impl)

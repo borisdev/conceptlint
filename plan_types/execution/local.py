@@ -25,7 +25,7 @@ from plan_types.execution.runner import StepRunner
 from plan_types.execution.strategy import Strategy
 from plan_types.plan.bindings import execution_order
 from plan_types.plan.plan import Plan
-from plan_types.plan.step import Step
+from plan_types.plan.step import Step, wired_inputs
 
 
 class ExecutionError(RuntimeError):
@@ -57,6 +57,9 @@ class LocalRunner:
                 f"{sorted(c.__name__ for c in self.strategy)} — run check_strategy(plan, strategy) "
                 f"before executing and this is reported for every Step at once.")
 
+        if cls.map_over is not None:
+            return _run_mapped(cls, impl, inputs)
+
         result = impl(**inputs)
 
         if hasattr(result, "__await__"):
@@ -67,6 +70,43 @@ class LocalRunner:
                 f"Nothing awaits this, so it would flow into the next Step as data.")
 
         return _outputs_by_name(cls, result)
+
+
+def _run_mapped(cls: type[Step], impl: Any, inputs: dict[str, Any]) -> dict[str, Any]:
+    """Their `.map()` + `join`, run sequentially.
+
+    The implementation is the PER-ITEM operation — `square: int -> int`, exactly theirs — so it is
+    called once per element and the results are collected in order. That collection is their
+    `reduce_list_append`, which is the reducer their own example uses.
+
+    ⚠️ Sequential here, and that is not a limitation being hidden: `LocalRunner` has no concurrency
+    by decision (see runner.py), so a mapped Step under it is a loop. Actual parallelism is what
+    their engine is for, and `to_pydantic_graph` is where it belongs.
+    """
+    source, collected = cls.map_over
+    item_var, out_var = cls.inputs[0], cls.outputs[0]
+
+    items = inputs[source.name]
+    try:
+        iter(items)
+    except TypeError:
+        raise ExecutionError(
+            f"{cls.__name__} maps over {source.name!r}, which arrived as "
+            f"{type(items).__name__} and is not iterable. A mapped Step fans out over a "
+            f"sequence.") from None
+
+    results = []
+    for i, item in enumerate(items):
+        out = impl(**{item_var.name: item})
+        if hasattr(out, "__await__"):
+            out.close()
+            raise ExecutionError(
+                f"{cls.__name__} is bound to an async implementation; LocalRunner is synchronous "
+                f"by decision. See runner.py.")
+        _check_type(cls, out_var, out)
+        results.append(out)
+        del i
+    return {collected.name: results}
 
 
 def _outputs_by_name(cls: type[Step], result: Any) -> dict[str, Any]:
@@ -139,6 +179,6 @@ def execute(plan: Plan, inputs: Mapping[str, Any], runner: StepRunner) -> dict[s
 
     env: dict[str, Any] = dict(inputs)
     for step in execution_order(plan):
-        gathered = {v.name: env[v.name] for v in type(step).inputs}
+        gathered = {v.name: env[v.name] for v in wired_inputs(step)}
         env.update(runner.run(step, gathered))
     return env

@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from plan_types.plan.step import Step
+from plan_types.plan.step import Step, wired_inputs, wired_outputs
 from plan_types.plan.variable import Variable
 
 if TYPE_CHECKING:
@@ -52,7 +52,7 @@ def producers(plan: Plan) -> dict[Variable[Any], list[Step]]:
     """
     out: dict[Variable[Any], list[Step]] = {}
     for s in plan.steps:
-        for v in s.outputs:
+        for v in wired_outputs(s):
             out.setdefault(v, []).append(s)
     return out
 
@@ -61,7 +61,7 @@ def consumers(plan: Plan) -> dict[Variable[Any], list[Step]]:
     """Variable -> the Steps that consume it. Many is legal: `isInputVarOf` is not functional."""
     out: dict[Variable[Any], list[Step]] = {}
     for s in plan.steps:
-        for v in s.inputs:
+        for v in wired_inputs(s):
             out.setdefault(v, []).append(s)
     return out
 
@@ -85,7 +85,7 @@ def unbound_inputs(plan: Plan) -> tuple[tuple[Step, Variable[Any]], ...]:
     """
     prod = producers(plan)
     declared = set(plan.declared_inputs)
-    return tuple((s, v) for s in plan.steps for v in s.inputs
+    return tuple((s, v) for s in plan.steps for v in wired_inputs(s)
                  if v not in prod and v not in declared)
 
 
@@ -96,7 +96,7 @@ def orphans(plan: Plan) -> tuple[Variable[Any], ...]:
     Variable that is neither — which today means a Step declaring an output nothing reads while the
     Plan does not expose it either. Kept as its own function so the invariant can say WHICH.
     """
-    consumed = {v for s in plan.steps for v in s.inputs}
+    consumed = {v for s in plan.steps for v in wired_inputs(s)}
     terminal = set(plan.outputs)
     return tuple(v for v, _ in producers(plan).items()
                  if v not in consumed and v not in terminal)
@@ -115,7 +115,7 @@ def execution_order(plan: Plan) -> tuple[Step, ...]:
     from plan_types.plan.plan import PlanError  # noqa: PLC0415 — avoids an import cycle
 
     prod = producers(plan)
-    pending = {s: {p for v in s.inputs for p in prod.get(v, ()) if p is not s}
+    pending = {s: {p for v in wired_inputs(s) for p in prod.get(v, ()) if p is not s}
                for s in plan.steps}
     ordered: list[Step] = []
     while pending:

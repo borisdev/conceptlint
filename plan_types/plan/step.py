@@ -91,6 +91,23 @@ class Step(Generic[InputT, OutputT]):
     #: p-plan:hasOutputVar — 0..N.
     outputs: ClassVar[tuple[Variable[Any], ...]] = ()
 
+    #: Their `.map()`, declared. `(source, collected)` — two LIST Variables. The Step itself stays
+    #: the per-item operation, so `Square` is `int -> int` exactly as their `square` is, and the
+    #: Plan wires `numbers -> Square -> squares`.
+    #:
+    #:     class Square(Step):
+    #:         inputs, outputs = (number,), (squared,)     # int -> int, ONE item
+    #:         map_over = (numbers, squares)               # list[int] in, list[int] out
+    #:
+    #: The vocabulary is theirs — `map`, `join`, `reducer` — because a Plan that fans out is
+    #: describing the same thing pydantic-graph and LangGraph already have words for, and inventing
+    #: a third word for it would be the drift this package reports.
+    #:
+    #: ⚠️ Why not put it on the edge, where they put it: our edges are DERIVED. Two Steps are
+    #: connected when they share a Variable, so there is no edge object to hang `.map()` on. The
+    #: Step is the only declared thing in the neighbourhood.
+    map_over: ClassVar[tuple[Variable[Any], Variable[Any]] | None] = None
+
     #: Services this Step needs REACHABLE. Not values, not edges — see `service.py`. Every entry
     #: must appear in the owning Plan's `services`, enforced by `topology.declared_services`,
     #: which is the docker-compose property that stops the name meaning three things.
@@ -155,6 +172,25 @@ class Step(Generic[InputT, OutputT]):
                 raise TypeError(
                     f"{cls.__name__}.{field} must be a tuple of Variables, got {value!r}")
 
+        if cls.__dict__.get("map_over") is not None:
+            m = cls.map_over
+            if not (isinstance(m, tuple) and len(m) == 2
+                    and all(isinstance(v, Variable) for v in m)):
+                raise TypeError(
+                    f"{cls.__name__}.map_over must be (source, collected) — two list Variables, "
+                    f"the one fanned out and the one collected into. Got {m!r}.")
+            if len(cls.inputs) != 1 or len(cls.outputs) != 1:
+                raise TypeError(
+                    f"{cls.__name__} maps over {m[0].name!r}, so it is the PER-ITEM operation and "
+                    f"must declare exactly one input and one output — theirs is `square: int -> "
+                    f"int`. Got {len(cls.inputs)} in, {len(cls.outputs)} out. A mapped Step with a "
+                    f"fan-in has no meaning: there is no second list to zip against.")
+            if m[0] in cls.inputs or m[1] in cls.outputs:
+                raise TypeError(
+                    f"{cls.__name__}.map_over names the LIST Variables, and inputs/outputs name the "
+                    f"ITEM. Using the same Variable for both says the step consumes the whole list "
+                    f"and one of its items at once.")
+
         # Duplicate names within one side would make a binding ambiguous, and the ambiguity would
         # surface as the wrong value arriving rather than as an error here.
         for field in ("inputs", "outputs"):
@@ -174,3 +210,21 @@ class Step(Generic[InputT, OutputT]):
         ins = ", ".join(v.name for v in self.inputs) or "-"
         outs = ", ".join(v.name for v in self.outputs) or "-"
         return f"{type(self).__name__}({ins} -> {outs})"
+
+
+def wired_inputs(step: Any) -> tuple[Variable[Any], ...]:
+    """What the PLAN connects to this Step's input side.
+
+    Equal to `step.inputs` unless the Step maps, in which case the Plan sees the LIST it fans out
+    from while the implementation sees one item. Everything structural — bindings, every topology
+    and typing invariant, the diagram, the execution order — reads this, so a mapped Step is an
+    ordinary node in all of them and no invariant has to learn about `map_over`.
+    """
+    m = getattr(step, "map_over", None)
+    return (m[0],) if m else tuple(step.inputs)
+
+
+def wired_outputs(step: Any) -> tuple[Variable[Any], ...]:
+    """What the PLAN connects to this Step's output side. See `wired_inputs`."""
+    m = getattr(step, "map_over", None)
+    return (m[1],) if m else tuple(step.outputs)

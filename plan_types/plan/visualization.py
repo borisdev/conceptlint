@@ -17,6 +17,7 @@ from typing import Any, Sequence
 
 from plan_types.plan import bindings
 from plan_types.plan.plan import Plan
+from plan_types.plan.step import wired_inputs, wired_outputs
 from plan_types.plan.variable import Variable
 
 _SPLIT = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
@@ -84,7 +85,7 @@ def render_mermaid(plan: Plan, strategy: Any = None) -> str:
 
     free = set(plan.inputs)
     for i, s in enumerate(plan.steps):
-        for v in s.inputs:
+        for v in wired_inputs(s):
             if v in free:
                 lines.append(f'  {_port("IN", v)} -- {v.name} --> {_node(plan, i)}')
 
@@ -95,7 +96,7 @@ def render_mermaid(plan: Plan, strategy: Any = None) -> str:
 
     terminal = set(plan.outputs)
     for i, s in enumerate(plan.steps):
-        for v in s.outputs:
+        for v in wired_outputs(s):
             if v in terminal:
                 lines.append(f'  {_node(plan, i)} --> {_port("OUT", v)}')
 

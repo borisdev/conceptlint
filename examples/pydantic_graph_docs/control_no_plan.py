@@ -1,8 +1,10 @@
-"""CONTROL ARM — stage 3's three variants with NO Plan layer. Just GraphBuilder.
+"""CONTROL ARM — stage 3's three strategies with NO Plan layer. Just GraphBuilder.
 
-Written the way a competent developer would write it with GraphBuilder alone. Not a strawman: this
-is short, readable, and uses their idiom. If the Plan layer earns nothing here, that is the result,
-and it belongs in the comparison rather than being explained away.
+Their `parallel_processing.py`, written three times with a different `square` each time. This is
+what you write if you want to compare three implementations and you have GraphBuilder alone.
+
+Not a strawman: it is short, idiomatic, and uses their `.map()` and join exactly as documented.
+If the Plan layer earns nothing here, that is the result and it belongs in the comparison.
 
     uv run python3 -m examples.pydantic_graph_docs.control_no_plan
 """
@@ -10,102 +12,85 @@ from __future__ import annotations
 
 import asyncio
 
-from pydantic_graph import GraphBuilder, StepContext
+from pydantic_graph import GraphBuilder, StepContext, reduce_list_append
 
 
-def square(xs: list[int]) -> list[int]:
-    return [n * n for n in xs]
-
-
-def drop_outliers(xs: list[int]) -> list[int]:
-    if not xs:
-        return []
-    mid = sorted(xs)[len(xs) // 2]
-    return [s for s in xs if s <= 4 * mid]
-
-
-def weight(xs: list[int]) -> list[int]:
-    return [s * 2 if s < 10 else s for s in xs]
-
-
-def build_baseline():
-    g = GraphBuilder(name="baseline", input_type=list, output_type=int)
+def build_exact():
+    g = GraphBuilder(name="exact", input_type=list, output_type=int)
 
     @g.step
-    async def sq(ctx: StepContext[None, None, list]) -> list:
-        return square(ctx.inputs)
+    async def square(ctx: StepContext[None, None, int]) -> int:
+        return ctx.inputs * ctx.inputs
+
+    collect = g.join(reduce_list_append, initial_factory=list)
 
     @g.step
     async def total(ctx: StepContext[None, None, list]) -> int:
         return sum(ctx.inputs)
 
-    g.add(g.edge_from(g.start_node).to(sq), g.edge_from(sq).to(total),
-          g.edge_from(total).to(g.end_node))
+    g.add(g.edge_from(g.start_node).map().to(square), g.edge_from(square).to(collect),
+          g.edge_from(collect).to(total), g.edge_from(total).to(g.end_node))
     return g.build()
 
 
-def build_filtered():
-    g = GraphBuilder(name="filtered", input_type=list, output_type=int)
+def build_by_addition():
+    g = GraphBuilder(name="by_addition", input_type=list, output_type=int)
 
     @g.step
-    async def sq(ctx: StepContext[None, None, list]) -> list:
-        return square(ctx.inputs)
+    async def square(ctx: StepContext[None, None, int]) -> int:
+        return sum(abs(ctx.inputs) for _ in range(abs(ctx.inputs)))
 
-    @g.step
-    async def drop(ctx: StepContext[None, None, list]) -> list:
-        return drop_outliers(ctx.inputs)
+    collect = g.join(reduce_list_append, initial_factory=list)
 
     @g.step
     async def total(ctx: StepContext[None, None, list]) -> int:
         return sum(ctx.inputs)
 
-    g.add(g.edge_from(g.start_node).to(sq), g.edge_from(sq).to(drop),
-          g.edge_from(drop).to(total), g.edge_from(total).to(g.end_node))
+    g.add(g.edge_from(g.start_node).map().to(square), g.edge_from(square).to(collect),
+          g.edge_from(collect).to(total), g.edge_from(total).to(g.end_node))
     return g.build()
 
 
-def build_weighted():
-    g = GraphBuilder(name="weighted", input_type=list, output_type=int)
+def build_cheap():
+    g = GraphBuilder(name="cheap", input_type=list, output_type=int)
 
     @g.step
-    async def sq(ctx: StepContext[None, None, list]) -> list:
-        return square(ctx.inputs)
+    async def square(ctx: StepContext[None, None, int]) -> int:
+        n = ctx.inputs
+        return n * n if abs(n) <= 10 else abs(n) * 10
 
-    @g.step
-    async def drop(ctx: StepContext[None, None, list]) -> list:
-        return drop_outliers(ctx.inputs)
-
-    @g.step
-    async def wt(ctx: StepContext[None, None, list]) -> list:
-        return weight(ctx.inputs)
+    collect = g.join(reduce_list_append, initial_factory=list)
 
     @g.step
     async def total(ctx: StepContext[None, None, list]) -> int:
         return sum(ctx.inputs)
 
-    g.add(g.edge_from(g.start_node).to(sq), g.edge_from(sq).to(drop),
-          g.edge_from(drop).to(wt), g.edge_from(wt).to(total),
-          g.edge_from(total).to(g.end_node))
+    g.add(g.edge_from(g.start_node).map().to(square), g.edge_from(square).to(collect),
+          g.edge_from(collect).to(total), g.edge_from(total).to(g.end_node))
     return g.build()
 
 
-VARIANTS = {"baseline": build_baseline, "filtered": build_filtered, "weighted": build_weighted}
-CORPUS = [[1, 2, 3], [1, 2, 50], [2, 2, 2, 40]]
+ARMS = {"exact": build_exact, "by_addition": build_by_addition, "cheap": build_cheap}
+CORPUS = [[1, 2, 3, 4, 5], [12], [3, 20]]
 
 
 async def main() -> None:
-    print(f"  {'input':<16} " + " ".join(f"{n:>10}" for n in VARIANTS))
+    print(f"  {'input':<16} {'expected':>9} " + " ".join(f"{a:>14}" for a in ARMS))
     for case in CORPUS:
-        cells = [await build().run(inputs=case) for build in VARIANTS.values()]
-        print(f"  {str(case):<16} " + " ".join(f"{c:>10}" for c in cells))
+        expected = sum(n * n for n in case)
+        cells = []
+        for build in ARMS.values():
+            got = await build().run(inputs=case)
+            cells.append(f"{got:>8} {'ok' if got == expected else 'WRONG':>5}")
+        print(f"  {str(case):<16} {expected:>9} " + " ".join(cells))
 
-    print("\n  Same numbers as stage 3. The graphs work, they render, they run.")
-    print("  What is NOT available here, and why it is not a strawman:")
-    print("    - `sq` is redeclared in all three builders. Three functions, one operation.")
-    print("      Nothing says they are the same step; a change to one is silent in the others.")
-    print("    - to ask 'do these three share a contract?' you read three functions.")
-    print("    - to ask 'what changed between filtered and weighted?' you diff wiring code.")
-    print("    - each variant is a build_* FUNCTION, so a fourth variant is a fourth copy.")
+    print("\n  Same numbers as stage 3. It works, it renders, it runs in parallel.")
+    print("  What is NOT available, and why this is not a strawman:")
+    print("    - the map/join wiring is written 3x. Change the reducer and you change it 3 times,")
+    print("      or you change 1 and the other two silently disagree.")
+    print("    - `total` is written 3x though it never varies. Nothing says the three are one step.")
+    print("    - to ask 'is this the same process with a different square?' you diff 3 builders.")
+    print("    - a 4th arm is a 4th copy of the whole graph, not one dict entry.")
 
 
 if __name__ == "__main__":

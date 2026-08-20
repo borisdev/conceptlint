@@ -227,6 +227,55 @@ has a workflow that needs durability.
 
 ---
 
+## ⚠️ The experiment corrected itself once, and that is the most useful thing in it
+
+The first stage 3 invented three *topology* variants — `Square → Total`, `Square → DropOutliers →
+TotalKept`, `Square → DropOutliers → Weight → TotalWeighted` — to demonstrate structural diffing.
+It produced three Step classes doing one job:
+
+    class Total(Step):          inputs, outputs = (squares,),  (total,)
+    class TotalKept(Step):      inputs, outputs = (kept,),     (total,)
+    class TotalWeighted(Step):  inputs, outputs = (weighted,), (total,)
+
+I read that as a design flaw — a Step's port binds to a Variable's identity, so moving a step means
+a new class — and drafted a fix. **Boris read it correctly:** all three were one Plan,
+
+    numbers ──> [transform] ──> transformed ──> [sum] ──> total
+
+with three implementations of the transform. Two Step classes, not six. The duplication was not the
+design failing; it was **the naming rule reporting that I had drawn the Step boundaries in the wrong
+place** — three names for one concept, appearing exactly where the mis-modelling was.
+
+Two things follow, and both are load-bearing:
+
+- **The proposed fix was cancelled.** Its motivating case evaporated. `docs/design.md` §6 — add the
+  second implementation first — applied to a change I was about to make on one bad example.
+- **The invented variants were not in their docs at all.** `DropOutliers` and `Weight` are mine.
+  Stage 3 is now their actual `parallel_processing.py`: `.map()`, a join, and `reduce_list_append`,
+  in their vocabulary.
+
+The question the layer does NOT answer, and should not pretend to: *when is a composite a Step and
+when is it an implementation?* The usable test is **can you evaluate the parts separately, and do
+you need to** — "dropping outliers is what fixed `[1, 2, 50]`" requires `DropOutliers` to be a
+declared Step, because you can only score what is declared. "Arm B beat arm A" does not. Choosing is
+the modelling act; the Plan makes you write the choice down somewhere checkable.
+
+## Measured, on their `parallel_processing.py`
+
+Three implementations of one Step, against the same three written directly in GraphBuilder:
+
+    with a Plan    5 lines    2 Step classes; 3 arms are 3 dict entries
+    control       37 lines    3 build_* functions
+
+    `async def square(`  3x in the control      `g.join(`   3x
+    `async def total(`   3x in the control      `.map()`    4x
+
+The join wiring and the reducer are written three times in the control. Change the reducer and you
+change it three times — or change one, and the other two silently stop being the same experiment.
+
+⚠️ And the honest other end of the curve: at stage 1 — one arm, two steps — the Plan layer is pure
+overhead. It costs a declaration and buys nothing until there is a second arm.
+
 ## Deliberately out of scope
 
 The **A/B counterfactual experiment** from the process-spec handoff: fork an official Pydantic Graph
