@@ -20,6 +20,19 @@ Plan
 
 This is not a replacement for Claude Code or Cursor. It's the thing their plans should produce.
 
+The category word is **workflow**. LangGraph, Temporal and Pydantic Graph all *execute* one, and
+each is good at it. This layer sits above them: the workflow plan you settle — and can validate,
+draw and argue about — **before** choosing an engine, or instead of choosing one, since plenty of
+processes never need retries or durability at all.
+
+> **Declarative, typed workflow plans, separated from execution.**
+
+The reason to separate them is cognitive load, and it is not a metaphor. Working directly in an
+execution framework, a developer and a coding agent reason simultaneously about domain concepts,
+schemas, step boundaries, data dependencies, async behaviour, retries, timeouts, workers,
+serialization and framework APIs. Half of those have nothing to do with whether the process is
+*right*. Settle the process first, with fewer things in the room.
+
 ## 60 seconds
 
 ```python
@@ -275,10 +288,18 @@ git clone https://github.com/borisdev/plan-types && cd plan-types && uv sync
 uv run pytest -q
 ```
 
-## Open question, deliberately
+## Settled: PlanTypes is the product
 
 Are semantic invariants the general product, with PlanTypes as the first ontology-grounded use
 case — or is PlanTypes the product, with invariants as a subsystem inside it?
 
-Not decided. The code is arranged so invariants *could* split into a standalone package later, and
-that split has not been made. Worth arguing about in the open rather than settling early.
+**Decided 2026-08-20: PlanTypes is the product.**
+
+Not because the first framing is wrong, but because it cannot be argued yet. A general
+semantic-invariant product needs a corpus of trial and error that does not exist, and it is hard to
+grasp before it is demonstrated — which is a bad combination for the thing you lead with. *"Settle
+the workflow plan before the execution details"* is one sentence, and it works today.
+
+So `conceptlint` stays, as **a supporting semantic linter rather than a second product**. The code
+is still arranged so it could split into its own package, and that option is worth keeping. What
+changes is which one gets explained first, and which one the repo is named after.
