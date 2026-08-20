@@ -18,6 +18,7 @@ REQUIRED = [
     "plan_types",
     "plan_types.invariants",
     "plan_types.plan",
+    "plan_types.execution",
     "conceptlint.core.lint",
 ]
 
