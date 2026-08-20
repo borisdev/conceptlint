@@ -279,3 +279,57 @@ def test_the_readme_does_not_claim_unbuilt_integrations() -> None:
     for unbuilt in ("Temporal", "persistence", "agent-hook"):
         assert unbuilt in readme.split("Not built:")[1][:400], (
             f"{unbuilt} is not implemented; Status must say so")
+
+
+# --- MultiStep: a Plan that is also a Step -------------------------------------------------------
+
+def test_a_multistep_can_actually_be_a_step() -> None:
+    """It could not until 2026-08-20 — the one thing the class exists for.
+
+    It subclassed Plan alone, so `Plan.__post_init__`'s isinstance(s, Step) check rejected it. The
+    ontology citation said rdfs:subClassOf BOTH; the code implemented one. Nothing caught it
+    because nothing had ever nested a Plan.
+    """
+    from plan_types.plan.plan import MultiStep
+
+    a, b, c = Variable("a", str), Variable("b", str), Variable("c", str)
+
+    class In1(Step):
+        inputs, outputs = (a,), (b,)
+
+    class In2(Step):
+        inputs, outputs = (b,), (c,)
+
+    class After(Step):
+        inputs, outputs = (c,), (Variable("d", str),)
+
+    nested = MultiStep(name="inner", steps=(In1(), In2()))
+    assert isinstance(nested, Step)
+
+    outer = Plan(name="outer", steps=(nested, After()))
+    assert len(outer.steps) == 2
+
+    # Ports are DERIVED from the inner Plan, never declared twice.
+    assert [v.name for v in nested.inputs] == ["a"]
+    assert [v.name for v in nested.outputs] == ["c"]
+
+
+def test_a_multistep_knows_whether_its_inner_plan_iterates() -> None:
+    """`until` names the Variable that ends the loop. Read the cycle, do not declare it."""
+    from plan_types.plan.plan import MultiStep
+
+    draft, critique = Variable("draft", str), Variable("critique", str)
+
+    class Write(Step):
+        inputs, outputs = (critique,), (draft,)
+
+    class Review(Step):
+        inputs, outputs = (draft,), (critique,)
+
+    loop = MultiStep(name="revise", steps=(Write(), Review()), until=critique)
+    assert loop.iterative is True
+    assert loop.until is critique
+    assert "until='critique'" in repr(loop)
+
+    straight = MultiStep(name="chain", steps=(Write(),))
+    assert straight.iterative is False

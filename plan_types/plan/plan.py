@@ -169,15 +169,65 @@ def check_arms(arms: Sequence[Plan]) -> None:
 
 
 @dataclass(frozen=True)
-class MultiStep(Plan):
+class MultiStep(Plan, Step):
     """[p-plan:MultiStep](http://purl.org/net/p-plan#MultiStep) — a Plan that appears as a Step.
 
     `rdfs:subClassOf` **both** `p-plan:Plan` and `p-plan:Step`, bound to its definition by
     `isDecomposedAsPlan`. This is how a Plan nests: one node in an outer Plan, a whole Plan inside.
+
+    ## ⚠️ It did not inherit from `Step` until 2026-08-20, so it could not BE one
+
+    It subclassed `Plan` alone, and `Plan.__post_init__` requires every entry in `steps` to be a
+    `Step` — so putting a MultiStep inside a Plan raised. The one thing the class exists for did not
+    work, for as long as the class existed, because nothing ever nested a Plan. The ontology
+    citation was right and the code did not implement it: the failure
+    `provenance.grounded_citation` exists to catch, in the class that carries the IRI.
+
+    Ports are DERIVED — `Plan.inputs` and `Plan.outputs` already mean free and terminal Variables,
+    which is exactly what this node consumes and produces. Declaring them again would be a second
+    source of truth that goes stale the moment a nested Step moves.
+
+    ## `until` — the termination predicate, declared but not implemented here
+
+    An iterative region cannot be linearised, and the reason is not the toposort: a Plan that says
+    `WriteEmail -> Feedback -> WriteEmail` never says when to STOP, so no scheduler could run it
+    either. `until` names the Variable whose value decides.
+
+        class ReviseUntilApproved(MultiStep): ...
+        ReviseUntilApproved(name="revise", steps=(...), until=approved)
+
+    Plan-time: it declares WHICH Variable governs termination. The test itself is a function and
+    therefore an implementation, so it lives in the `Strategy` alongside every other one — the same
+    split as `Step`, for the same reason. This keeps `Decision`, branching and `End` out of the Plan
+    layer, where pydantic-graph and LangGraph already own them and do them well.
+
+    ⚠️ `until` is OURS, deliberately uncited. P-Plan's 18 terms are Plan/Step/Variable structure and
+    PROV-O describes executions; neither has a word for "this planned region repeats until". Citing
+    one that does not say it is the failure this package was built to report.
     """
+
+    #: The Variable whose value ends the iteration. `None` means this MultiStep is not iterative —
+    #: it is plain nesting, and `topology.terminating_iteration` refuses a cyclic inner Plan without
+    #: one, because a non-terminating declaration is not a specification.
+    until: Variable[Any] | None = None
 
     ONTOLOGY_IRI: ClassVar[str] = "http://purl.org/net/p-plan#MultiStep"
 
     def decomposed_as_plan(self) -> Plan:
         """p-plan:isDecomposedAsPlan — the Plan this step expands into."""
         return Plan(name=self.name, steps=self.steps)
+
+    @property
+    def iterative(self) -> bool:
+        """Does the inner Plan contain a cycle? Read from the bindings, never declared."""
+        from plan_types.plan.bindings import execution_order  # noqa: PLC0415 — import cycle
+
+        try:
+            execution_order(self.decomposed_as_plan())
+        except PlanError:
+            return True
+        return False
+
+    def __repr__(self) -> str:
+        tail = f", until={self.until.name!r}" if self.until else ""
+        return f"MultiStep({self.name!r}, {len(self.steps)} steps{tail})"
