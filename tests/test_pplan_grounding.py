@@ -180,11 +180,9 @@ def test_our_plan_does_not_assume_a_linear_chain():
 
     class First(Step):                    # needs TWO inputs, so first/last cannot describe the Plan
         inputs, outputs = (A, B), (C,)
-        def run(self, **v): return 1.0
 
     class Second(Step):
         inputs, outputs = (C,), (D,)
-        def run(self, **v): return {}
 
     plan = Plan(name="fanin", steps=(First(), Second()))
     assert {v.name for v in plan.inputs} == {"a", "b"}, \

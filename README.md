@@ -24,43 +24,70 @@ This is not a replacement for Claude Code or Cursor. It's the thing their plans 
 
 ```python
 from plan_types import Plan, Step, Variable, render_mermaid, validate
+from plan_types.execution import LocalRunner, execute
 from plan_types.invariants import topology, typing
 
-PAPER    = Variable("paper", ClinicalStudy)
-FINDINGS = Variable("findings", list[Finding])
-SUMMARY  = Variable("summary", str)
+document = Variable("document", Document)
+outline  = Variable("outline", Outline)
+summary  = Variable("summary", Summary)
 
-class Extract(Step):
-    inputs, outputs = (PAPER,), (FINDINGS,)
+class MakeOutline(Step):
+    inputs, outputs = (document,), (outline,)
 
 class Summarize(Step):
-    inputs, outputs = (PAPER, FINDINGS), (SUMMARY,)   # fans in — needs both
+    inputs, outputs = (document, outline), (summary,)   # fans in — needs both
 
 plan = Plan(
-    name="extract_and_summarize",
-    steps=(Extract(), Summarize()),
-    declared_inputs=(PAPER,),        # what the Plan expects to be handed
+    name="summarize_document",
+    steps=(MakeOutline(), Summarize()),
+    declared_inputs=(document,),        # what the Plan expects to be handed
 )
 
-validate(plan, [*topology.ALL, *typing.ALL])          # → []
+validate(plan, [*topology.ALL, *typing.ALL])            # → []
 print(render_mermaid(plan))
 ```
 
 ```mermaid
 flowchart TD
-  IN_paper(["paper: ClinicalStudy"])
-  s0["Extract"]
-  s1["Summarize"]
-  OUT_summary(["summary: str"])
-  IN_paper -- paper --> s0
-  IN_paper -- paper --> s1
-  s0 -- findings --> s1
-  s1 --> OUT_summary
+  IN_document(["document: Document"])
+  summarize_document_0["Make Outline"]
+  summarize_document_1["Summarize"]
+  OUT_summary(["summary: Summary"])
+  IN_document -- document --> summarize_document_0
+  IN_document -- document --> summarize_document_1
+  summarize_document_0 -- outline --> summarize_document_1
+  summarize_document_1 --> OUT_summary
+  classDef port fill:#fff,stroke:#333,stroke-width:1px,color:#333;
+  class IN_document,OUT_summary port;
 ```
 
 Every arrow is read from the bindings. Add an input and the picture changes with no edit to the
 renderer — a hand-drawn diagram is a claim about the code that stops being true the moment a Step
-moves, and nothing tells you.
+moves, and nothing tells you. That block is generated from
+[`examples/hello/flow.py`](examples/hello/flow.py), which `tests/test_execution.py` runs.
+
+**Notice what a Step does not contain.** No prompt, no model name, no retry policy, no `run`. It
+declares that an operation exists and what flows through it. How it is performed is chosen
+separately, and chosen *per execution*:
+
+```python
+def summarize_fast(document: Document, outline: Outline) -> Summary: ...
+def summarize_precise(document: Document, outline: Outline) -> Summary: ...
+
+fast    = {MakeOutline: outline_by_sentence, Summarize: summarize_fast}
+precise = {MakeOutline: outline_by_sentence, Summarize: summarize_precise}
+
+execute(plan, {"document": doc}, LocalRunner(fast))       # Ninety seconds: Name the unit.
+execute(plan, {"document": doc}, LocalRunner(precise))    # Ninety seconds: Name the unit; Then run it; …
+```
+
+**The `plan` object is not touched between those two lines.** That is the property worth having: an
+experiment can say *the logical process was held constant, only the implementation of `Summarize`
+changed* — and mean it, because the same declaration served both arms.
+
+The alternative is to declare `SummarizeV1` and `SummarizeV2` as separate Steps, and that is not a
+workaround, it is two names for one concept — the `naming.naming_drift` this package exists to
+report, committed inside the package that reports it.
 
 ## Why this exists
 
@@ -135,22 +162,39 @@ hidden the fact that the signature was wrong.
 
 ## The logical process first, the runtime later — or never
 
+Four layers, and each one only knows about the one above it:
+
 ```
-domain types
-    ↓
-Plan / Step / Variable
-    ↓
-invariants
-    ↓
-visualization
-    ↓
-optional execution adapters  ── plain Python │ Temporal │ LangGraph
+WHAT EXISTS            Variable ── typed slot          ┐
+                       Step     ── one operation       │  plan-time
+                       Plan     ── how Steps compose   │  imports nothing else
+                       Service  ── what must be up     ┘
+
+HOW IT IS PERFORMED    Strategy ── {Step: implementation}      chosen per execution
+                                   several per Step, none privileged
+
+HOW IT IS RUN          StepRunner ── Protocol            LocalRunner  ── here
+                                                         Temporal     ── not built
+                                                         LangGraph    ── not built
+
+WHAT ACTUALLY RAN      prov:Activity, prov:Entity        ⚠️ NOT modelled by this package
 ```
 
-Most workflow systems fuse process design with orchestration semantics from the first line. PlanTypes
-separates them, and the separation is the point: simpler debugging, fewer irrelevant runtime
-concerns, and a specification a coding agent can change safely. Plenty of processes never need
-retries or durability at all.
+The arrows only point down. `plan_types.plan` imports nothing from `plan_types.execution`, which is
+what lets a specification be read, validated and drawn with no execution backend in the room — and
+`scripts/check_wheel.py` imports both from a built wheel outside the source tree, because a layering
+claim that only holds in an editable install is not a layering claim.
+
+⚠️ **The bottom row is deliberately absent.** `p-plan:Step` is the intended operation;
+`prov:Activity` is one execution of it. A runtime may map them one to one, and the moment code
+believes that, *"the definition is wrong"* and *"that run failed"* become the same sentence with
+opposite fixes.
+
+Most workflow systems fuse process design with orchestration semantics from the first line.
+PlanTypes separates them, and the separation is the point: simpler debugging, fewer irrelevant
+runtime concerns, and a specification a coding agent can change safely. Plenty of processes never
+need retries or durability at all — `LocalRunner` is sequential, in-process, and has no retries by
+decision, not by omission.
 
 ⚠️ **A Plan is not a DAG.** A Plan *may* be acyclic — that's `topology.acyclic`, an invariant you
 opt into. Building it into the type would rule out iterative processes before anyone asked for one,
@@ -211,11 +255,18 @@ decoration with the authority of a fact.
 ## Status — honest
 
 **Works today:** typed Plans, the four invariant categories, `render_mermaid`, P-Plan/PROV-O
-grounding with vendored ontologies, 116 tests.
+grounding with vendored ontologies, `Strategy` + `check_strategy`, and `LocalRunner` — sequential,
+in-process, no retries. 142 tests.
 
-**Not built:** execution adapters (Temporal, LangGraph), persistence, retries, scheduling, embedding
-based similarity, and agent-hook integration. The pattern above describes what the artifact is
-*for*; the hooks that would put it in an agent's loop are not wired yet.
+**Not built:** an async runner, execution adapters (Temporal, LangGraph, Pydantic Graph),
+persistence, retries, scheduling, concurrency, embedding-based similarity, and agent-hook
+integration. The pattern above describes what the artifact is *for*; the hooks that would put it in
+an agent's loop are not wired yet.
+
+⚠️ **`LocalRunner` is synchronous, and an `async def` implementation is refused rather than
+accepted.** Calling one from sync code returns a coroutine — truthy, with a repr, flowing into the
+next Step as though it were data. `check_strategy` reports it before execution and the runner raises
+at the call site. An `AsyncStepRunner` lands when there is a real async implementation to run.
 
 Not on PyPI. From source:
 

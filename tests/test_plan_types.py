@@ -30,14 +30,14 @@ class Extract(Step):
     inputs, outputs = (PAPER,), (FINDINGS,)
 
 
-class Summarize(Step):
+class SummarizePaper(Step):
     """Fans in: needs the paper AND the findings."""
 
     inputs, outputs = (PAPER, FINDINGS), (SUMMARY,)
 
 
 def a_plan() -> Plan:
-    return Plan(name="extract_and_summarize", steps=(Extract(), Summarize()))
+    return Plan(name="extract_and_summarize", steps=(Extract(), SummarizePaper()))
 
 
 # ── the Plan answers the eight questions ─────────────────────────────────────────────────────────
@@ -56,13 +56,13 @@ def test_inputs_are_the_free_variables_not_the_first_step() -> None:
 
 def test_a_step_may_consume_many_variables() -> None:
     """p-plan:hasInputVar carries no cardinality restriction — fan-in is the ordinary case."""
-    assert len(Summarize.inputs) == 2
+    assert len(SummarizePaper.inputs) == 2
 
 
 def test_declaration_order_carries_no_meaning() -> None:
     """Order is derived from the bindings; declaring backwards must not change it."""
     forward = bindings.execution_order(a_plan())
-    backward = bindings.execution_order(Plan(name="x", steps=(Summarize(), Extract())))
+    backward = bindings.execution_order(Plan(name="x", steps=(SummarizePaper(), Extract())))
     assert [type(s).__name__ for s in forward] == [type(s).__name__ for s in backward]
 
 
@@ -148,7 +148,7 @@ def test_an_unbound_input_is_reported_once_inputs_are_declared() -> None:
 
 def test_a_DECLARED_plan_input_is_NOT_unbound() -> None:
     """The PASS twin. A Plan's own signature must not read as an error."""
-    plan = Plan(name="ok", steps=(Extract(), Summarize()), declared_inputs=(PAPER,))
+    plan = Plan(name="ok", steps=(Extract(), SummarizePaper()), declared_inputs=(PAPER,))
     assert validate(plan, [topology.BOUND_INPUTS]) == []
 
 
@@ -157,7 +157,7 @@ def test_two_producers_for_one_variable_is_reported() -> None:
     class AlsoExtract(Step):
         inputs, outputs = (PAPER,), (FINDINGS,)
 
-    found = validate(Plan(name="dup", steps=(Extract(), AlsoExtract(), Summarize())),
+    found = validate(Plan(name="dup", steps=(Extract(), AlsoExtract(), SummarizePaper())),
                      [topology.SINGLE_PRODUCER])
     assert found and "findings" in found[0].message
 
@@ -228,7 +228,7 @@ def test_the_label_splitter_handles_runs_of_capitals() -> None:
 # ── p-plan:MultiStep — a Plan that is also a Step ────────────────────────────────────────────────
 
 def test_multistep_is_both_a_plan_and_decomposable() -> None:
-    ms = MultiStep(name="inner", steps=(Extract(), Summarize()))
+    ms = MultiStep(name="inner", steps=(Extract(), SummarizePaper()))
     assert isinstance(ms, Plan)
     assert ms.decomposed_as_plan().shape() == ms.shape()
 
@@ -243,21 +243,27 @@ def test_the_readme_example_runs_and_returns_what_it_claims() -> None:
     package is about — a confident claim with nothing checking it.
     """
     import pathlib
-    import re
+
+    from examples.hello.flow import fast, plan, precise
 
     readme = (pathlib.Path(__file__).resolve().parents[1] / "README.md").read_text()
-    assert "declared_inputs=(PAPER,)" in readme, (
+    assert "declared_inputs=(document,)" in readme, (
         "the 60-second example must declare its inputs, or the validate() it claims is wrong")
 
-    plan = Plan(name="extract_and_summarize", steps=(Extract(), Summarize()),
-                declared_inputs=(PAPER,))
     assert validate(plan, [*topology.ALL, *typing_inv.ALL]) == [], (
         "the README claims this returns []")
 
-    # And the shape of the diagram it prints.
-    out = render_mermaid(plan)
-    for edge in ("IN_paper -- paper -->", "-- findings -->", "--> OUT_summary"):
-        assert edge in out, f"README shows {edge!r}, renderer does not produce it"
+    # ⚠️ The diagram must be BYTE-IDENTICAL to what the renderer produces. The previous version of
+    # this test rebuilt an equivalent Plan from local fixtures and grepped for three edges, so a
+    # hand-edited README block passed as long as it contained them — and it was hand-edited: the
+    # committed block used node ids `s0`/`s1`, which this renderer has never emitted.
+    assert render_mermaid(plan) in readme, (
+        "the README's mermaid block is not what render_mermaid(plan) returns — regenerate it "
+        "rather than editing it, since a hand-drawn diagram stops being true silently")
+
+    # And the claim that matters: one Plan, two strategies, without touching the Plan.
+    assert fast is not precise
+    assert set(fast) == set(precise), "both arms must implement the same Steps"
 
 
 def test_the_readme_does_not_claim_unbuilt_integrations() -> None:

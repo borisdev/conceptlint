@@ -28,7 +28,6 @@ class Other:
 def _plan(name: str, out=Graph) -> Plan:
     step = type(f"S{name}", (Step,), {
         "inputs": (Variable("paste", Paste),), "outputs": (Variable("out", out),),
-        "run": lambda self, v: out(),
     })
     return Plan(name=name, steps=(step(),))
 
