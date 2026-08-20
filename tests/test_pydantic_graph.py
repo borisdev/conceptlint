@@ -109,3 +109,24 @@ def test_the_diagrams_differ_only_in_the_implementation_labels() -> None:
     renders = [render_mermaid(plan, s) for s in ARMS.values()]
     assert len({strip(r) for r in renders}) == 1, "topology differed between arms"
     assert len(set(renders)) == len(ARMS), "the arms rendered identically — labels missing"
+
+
+def test_stage3_variants_and_control_arm_agree() -> None:
+    """The comparison is only worth reading if both arms compute the same thing."""
+    from examples.pydantic_graph_docs import control_no_plan as ctrl
+    from examples.pydantic_graph_docs import stage3_variants as s3
+    from plan_types.execution import LocalRunner, execute
+
+    for case in s3.CORPUS:
+        with_plan = [execute(p, {"numbers": case}, LocalRunner(s3.STRATEGY))["total"]
+                     for p in s3.VARIANTS.values()]
+        control = [asyncio.run(build().run(inputs=case)) for build in ctrl.VARIANTS.values()]
+        assert with_plan == control, f"arms disagree on {case}: {with_plan} vs {control}"
+
+
+def test_the_three_variants_share_one_contract() -> None:
+    """`check_arms` is what makes stage 3's eval table legal rather than merely printed."""
+    from plan_types import check_arms
+    from examples.pydantic_graph_docs.stage3_variants import VARIANTS
+
+    check_arms(list(VARIANTS.values()))
