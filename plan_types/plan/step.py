@@ -139,6 +139,13 @@ class Step(Generic[InputT, OutputT]):
                     f"{cls.__name__}.{old} is retired — use {new}. {cls._RETIRED_WHY[old]}")
         for field in ("inputs", "outputs"):
             value = getattr(cls, field, ())
+            # ⚠️ DERIVED ports are legal and are not tuples. `MultiStep` is a Plan that is also a
+            # Step, and its ports are its inner Plan's free and terminal Variables — computed, not
+            # declared, because declaring them a second time is the two-sources-of-truth this
+            # package refuses everywhere else. A descriptor here means "derived"; leave it alone.
+            if isinstance(getattr(cls, "__dict__", {}).get(field, None), property) or isinstance(
+                    value, property):
+                continue
             if isinstance(value, Variable):
                 raise TypeError(
                     f"{cls.__name__}.{field} is a single Variable; it must be a tuple. P-Plan puts "
@@ -151,7 +158,10 @@ class Step(Generic[InputT, OutputT]):
         # Duplicate names within one side would make a binding ambiguous, and the ambiguity would
         # surface as the wrong value arriving rather than as an error here.
         for field in ("inputs", "outputs"):
-            names = [v.name for v in getattr(cls, field, ())]
+            value = getattr(cls, field, ())
+            if isinstance(value, property):   # derived — see the note above
+                continue
+            names = [v.name for v in value]
             if len(names) != len(set(names)):
                 raise TypeError(f"{cls.__name__}.{field} names a Variable twice: {names}")
 
