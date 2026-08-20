@@ -186,9 +186,10 @@ WHAT EXISTS            Variable ── typed slot          ┐
 HOW IT IS PERFORMED    Strategy ── {Step: implementation}      chosen per execution
                                    several per Step, none privileged
 
-HOW IT IS RUN          StepRunner ── Protocol            LocalRunner  ── here
-                                                         Temporal     ── not built
-                                                         LangGraph    ── not built
+HOW IT IS RUN          StepRunner ── Protocol       LocalRunner     ── here
+                                                    Pydantic Graph  ── here, optional extra
+                                                    Temporal        ── not built
+                                                    LangGraph       ── not built
 
 WHAT ACTUALLY RAN      prov:Activity, prov:Entity        ⚠️ NOT modelled by this package
 ```
@@ -271,9 +272,15 @@ decoration with the authority of a fact.
 grounding with vendored ontologies, `Strategy` + `check_strategy`, and `LocalRunner` — sequential,
 in-process, no retries. 142 tests.
 
-**Not built:** an async runner, execution adapters (Temporal, LangGraph, Pydantic Graph),
-persistence, retries, scheduling, concurrency, embedding-based similarity, and agent-hook
-integration. The pattern above describes what the artifact is *for*; the hooks that would put it in
+**Also works today:** `to_pydantic_graph(plan, strategy)` — the same Plan and the same Strategy
+compiled onto [Pydantic Graph](https://pydantic.dev/docs/ai/graph/graph/) and run there, with
+nothing edited in between. `tests/test_pydantic_graph.py` asserts both runtimes return the same
+answer, because that is the package's central claim and a claim like it has to be executable.
+
+**Not built:** an async `StepRunner`, Temporal and LangGraph adapters, `Fork`/`Join` (Pydantic Graph
+2.x has both, and a Plan's bindings already say which Steps are independent — so parallelising is
+derivable rather than declarable, which is the version worth building), persistence, retries,
+scheduling, embedding-based similarity, and agent-hook integration. The pattern above describes what the artifact is *for*; the hooks that would put it in
 an agent's loop are not wired yet.
 
 ⚠️ **`LocalRunner` is synchronous, and an `async def` implementation is refused rather than
