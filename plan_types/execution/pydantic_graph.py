@@ -75,7 +75,8 @@ def to_pydantic_graph(plan: Plan, strategy: Strategy, *, name: str | None = None
             f"Plan {plan.name!r} cannot be compiled — the Strategy is incomplete:\n  "
             + "\n  ".join(problems))
 
-    order = execution_order(plan)  # raises on a cycle; see the module docstring
+    _refuse_cycles_for_the_right_reason(plan)
+    order = execution_order(plan)
     builder = GraphBuilder(name=name or plan.name, input_type=dict, output_type=dict)
 
     steps = [_compile_step(builder, step, strategy, i) for i, step in enumerate(order)]
@@ -85,6 +86,35 @@ def to_pydantic_graph(plan: Plan, strategy: Strategy, *, name: str | None = None
     edges.append(builder.edge_from(steps[-1]).to(builder.end_node))
     builder.add(*edges)
     return builder.build()
+
+
+def _refuse_cycles_for_the_right_reason(plan: Plan) -> None:
+    """A cyclic Plan cannot compile — and the reason is NOT that toposort fails.
+
+    `execution_order` would raise anyway, saying "there is no execution order to return", which
+    reads as a limitation of the algorithm. It is not. Given a perfect cyclic scheduler this would
+    still loop forever, because **a Plan does not say when to stop**: their `Feedback.run()` returns
+    `WriteEmail | End[Email]` and the predicate lives in the node body, where we cannot see it.
+
+    Fixing that means adding Decision/branch/End to the Plan layer, which is rebuilding what
+    GraphBuilder already owns and does well. The route that does not: collapse each strongly
+    connected component into a `MultiStep` — `p-plan:MultiStep`, a Plan that appears as a Step. An
+    SCC condensation is ALWAYS a DAG, so the outer Plan compiles, and the loop inside is handed to
+    their state machine, which is built for it. Not implemented; named here so the refusal points
+    somewhere rather than merely saying no.
+    """
+    from plan_types.plan.plan import PlanError
+
+    try:
+        execution_order(plan)
+    except PlanError as exc:
+        raise PlanError(
+            f"{exc} — and note the reason is NOT that this cannot be ordered. A Plan does not "
+            f"carry a termination predicate, so no scheduler could run it either: pydantic-graph "
+            f"puts that predicate in the node body (`-> Next | End[T]`), which is the right place "
+            f"for it and is theirs. An iterative region belongs in a MultiStep whose "
+            f"implementation is one of their graphs; the outer Plan is then a DAG and compiles."
+        ) from exc
 
 
 def _compile_step(builder: Any, step: Any, strategy: Strategy, i: int) -> Any:
