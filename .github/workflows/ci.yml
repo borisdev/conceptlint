@@ -51,8 +51,13 @@ jobs:
           # reporting green. Registration is subclassing, so a Concept in an unimported
           # module does not exist — measured: without this the concept list was empty.
           OUT=$(uv run conceptlint plan_types/ 2>&1); RC=$?
-          set -e
+          # ⚠️ `set -e` stays OFF across the count. `grep -c` exits 1 when it counts ZERO, so with
+          # `bash -e` this line killed the job before its first echo — the gate went red precisely
+          # when plan_types/ was clean, and had done since the baseline reached 0 on 2026-08-17.
+          # Three red runs on main, none of them about the code. Still not `|| true`: that is the
+          # nobsmed failure the comment above names, where a usage message counted as 0 and passed.
           FOUND=$(printf '%s\n' "$OUT" | grep -cE '^(naming|typing|topology|provenance)\.[a-z_]+:')
+          set -e
           if [ "$RC" -ne 0 ] && [ "$FOUND" -eq 0 ]; then
             echo "::error::conceptlint failed to run — this gate was measuring nothing."
             printf '%s\n' "$OUT" | tail -20
