@@ -342,11 +342,13 @@ Install into `~/.claude/settings.json`, merging with any hooks already there:
 ```json
 {"hooks": {"PreToolUse": [{"matcher": "Write|Edit",
   "hooks": [{"type": "command",
-             "command": "<path-to-venv>/bin/python3 -m conceptlint.integrations.pre_write 2>/dev/null || true"}]}]}}
+             "command": "<path-to-venv>/bin/python3 -m conceptlint.integrations.pre_write"}]}]}}
 ```
 
-Use the interpreter of an environment where `conceptlint` and `plan_types` are importable — a bare
-`python3` will not find them. It reads the repo root from the hook payload's `cwd`, so one install
+⚠️ **No `2>/dev/null`, no `|| true`.** The first swallows the message, the second masks the exit
+code — either one silently turns this back into a hook that runs and reports nothing. Use the
+interpreter of an environment where `conceptlint` and `plan_types` are importable; a bare `python3`
+cannot, and a missing one exits 127, which does not block. It reads the repo root from the hook payload's `cwd`, so one install
 covers every project.
 
 ### ⚠️ Four things it does not do, measured rather than assumed
@@ -354,9 +356,11 @@ covers every project.
 - **It only sees NEW Pydantic models.** A new `Step` subclass produces nothing — verified by piping
   one in. Same root cause as the discovery gap in `naming/records.py`: a class is only recognised if
   its base was already found.
-- **It cannot interrupt in an auto-accept permission mode.** It returns `permissionDecision: "ask"`,
-  which `default` mode turns into a prompt and permissive modes answer for you. The check still
-  runs; nobody reads the answer.
+- **It BLOCKS the write** (exit 2) and puts the message in the agent's context. It used to return
+  `permissionDecision: "ask"` — but `ask` is a *permission* decision aimed at the human, and
+  "allow/deny" cannot answer "reuse or extend?". Worse, a permissive permission mode answers `ask`
+  for you: measured end-to-end, the hook emitted a correct collision message during a real write and
+  the agent never saw a word of it.
 - **It is silent on almost every write, by design.** A hook that comments on every edit is removed
   within a day, and then the useful interrupt is gone too.
 - **It fails open on everything** — unparseable source, missing import, timeout. A convenience must

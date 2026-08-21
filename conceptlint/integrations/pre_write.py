@@ -18,15 +18,24 @@ A linter reports. A hook can interrupt. This is the interrupt.
 **Silent unless a new model appears.** It fires on a tiny fraction of writes. A hook that comments
 on every edit is one that gets removed within a day, and then the useful interrupt is gone too.
 
-**Fail open, always.** Any error, any timeout, any unparseable input -> allow. A semantic convenience
-must never be able to stop work. The cost of being wrong here is a missed prompt; the cost of a hard
-failure is a blocked session.
+**Fail open on ERRORS.** Any exception, any timeout, any unparseable input -> allow. The cost of
+being wrong there is a missed prompt; the cost of a hard failure is a blocked session.
+
+⚠️ **But a FINDING now blocks** (exit 2), which is a deliberate narrowing of that rule as of
+2026-08-21. It used to return `permissionDecision: "ask"` — and a permissive permission mode answers
+`ask` for you, so the message reached no one. Measured, not feared: the hook emitted a correct
+collision message during a real write and the agent never saw it. See `main()`.
 
 ## Install
 
     {"hooks": {"PreToolUse": [{"matcher": "Write|Edit",
       "hooks": [{"type": "command",
-                 "command": "python3 -m conceptlint.integrations.pre_write"}]}]}}
+                 "command": "<venv>/bin/python3 -m conceptlint.integrations.pre_write"}]}]}}
+
+⚠️ No `2>/dev/null` and no `|| true`. The first swallows the message, the second masks the exit
+code — either one silently turns this back into a hook that runs and reports nothing. Use an
+interpreter that can import `conceptlint`; a bare `python3` cannot, and a missing one exits 127,
+which does not block.
 
 Claude Code passes the tool call on stdin as JSON and reads the decision from stdout.
 """
@@ -139,16 +148,24 @@ def main() -> int:
     if not message:
         return 0
 
-    # `ask` hands the decision to the human rather than deciding for them. The hook's job is to
-    # make the question unavoidable, not to be right about the answer.
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "ask",
-            "permissionDecisionReason": message,
-        }
-    }))
-    return 0
+    # ⚠️ EXIT 2, not `permissionDecision: "ask"` — changed 2026-08-21, and the reason is measured.
+    #
+    # `ask` is a PERMISSION decision: it asks the HUMAN whether to allow the tool call. But the four
+    # questions below are aimed at the AGENT, and "allow/deny" cannot answer "reuse or extend?".
+    # Worse, a permissive permission mode answers `ask` automatically, so the text reached nobody:
+    # observed end-to-end, the hook emitted the correct collision message naming an existing model
+    # at file:line, the write proceeded, and the agent never saw a word of it. A check whose output
+    # is unread is `checks.md`'s passing test with extra steps.
+    #
+    # Exit 2 blocks the call and feeds stderr back into the agent's context, which is the only
+    # channel where "reuse it instead" is an actionable answer.
+    #
+    # This narrows — does not revoke — the fail-open rule in the module docstring. Fail open on
+    # ERRORS: unparseable source, missing import, timeout all still `return 0` above. This blocks
+    # only on a FINDING, which is the thing the hook exists to produce. To revert to advisory,
+    # print the JSON above and `return 0`; it is one edit.
+    print(message, file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":
