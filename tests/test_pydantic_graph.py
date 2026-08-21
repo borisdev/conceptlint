@@ -120,7 +120,8 @@ def test_stage3_and_the_control_arm_agree() -> None:
     for case in s3.CORPUS:
         with_plan = [execute(s3.plan, {"numbers": case}, LocalRunner(a))["total"]
                      for a in s3.ARMS.values()]
-        control = [asyncio.run(build().run(inputs=case)) for build in ctrl.ARMS.values()]
+        control = [asyncio.run(ctrl.build(impl).run(inputs=case))
+                   for impl in ctrl.ARMS.values()]
         assert with_plan == control, f"arms disagree on {case}: {with_plan} vs {control}"
 
 

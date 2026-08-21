@@ -33,58 +33,10 @@ from plan_types.execution import LocalRunner, check_strategy, execute
 from plan_types.execution.pydantic_graph import to_pydantic_graph
 from plan_types.invariants import topology, typing
 
-numbers = Variable("numbers", list)
-number = Variable("number", int)
-squared = Variable("squared", int)
-squares = Variable("squares", list)
-total = Variable("total", int)
+from examples.pydantic_graph_docs.their_example import (ARMS, CORPUS, Square, Total,
+                                                        numbers, plan, squares)
 
-
-class Square(Step):
-    """Theirs, unchanged: one number in, one number out."""
-
-    inputs, outputs = (number,), (squared,)
-    map_over = (numbers, squares)
-
-
-class Total(Step):
-    """Their example stops at the joined list; summing gives us something to eval."""
-
-    inputs, outputs = (squares,), (total,)
-
-
-plan = Plan(name="parallel_processing", steps=(Square(), Total()),
-            declared_inputs=(numbers,))
-
-
-# ── three strategies for the SAME logical Step ───────────────────────────────────────────────────
-#
-# Stage 2's point again, now on their fan-out. `Square` is one operation; these are peers.
-
-def square_exact(number: int) -> int:
-    return number * number
-
-
-def square_by_addition(number: int) -> int:
-    return sum(abs(number) for _ in range(abs(number)))
-
-
-def square_cheap(number: int) -> int:
-    """Wrong above 10 — the arm an eval has to catch."""
-    return number * number if abs(number) <= 10 else abs(number) * 10
-
-
-def total_impl(squares: list) -> int:
-    return sum(squares)
-
-
-ARMS = {
-    "exact": {Square: square_exact, Total: total_impl},
-    "by_addition": {Square: square_by_addition, Total: total_impl},
-    "cheap": {Square: square_cheap, Total: total_impl},
-}
-
-CORPUS = [[1, 2, 3, 4, 5], [12], [3, 20]]
+__all__ = ["ARMS", "CORPUS", "Square", "Total", "numbers", "plan", "squares"]
 
 
 async def main() -> None:

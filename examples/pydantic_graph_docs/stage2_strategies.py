@@ -26,60 +26,10 @@ from plan_types.execution import LocalRunner, check_strategy, execute
 from plan_types.execution.pydantic_graph import to_pydantic_graph
 from plan_types.invariants import topology, typing
 
-numbers = Variable("numbers", list)
-squares = Variable("squares", list)
-total = Variable("total", int)
+from examples.pydantic_graph_docs.their_example import (ARMS, Square, Total, numbers,
+                                                        plan, squares)
 
-
-class Square(Step):
-    """Square each number. The step whose implementation we are comparing."""
-
-    inputs, outputs = (numbers,), (squares,)
-
-
-class Total(Step):
-    """Add them up. Held fixed across all three arms."""
-
-    inputs, outputs = (squares,), (total,)
-
-
-plan = Plan(name="square_and_total", steps=(Square(), Total()),
-            declared_inputs=(numbers,))
-
-
-# ── three implementations of Square. Peers, not overrides ────────────────────────────────────────
-
-def square_exact(numbers: list) -> list:
-    return [n * n for n in numbers]
-
-
-def square_by_repeated_addition(numbers: list) -> list:
-    """Same contract, different method — the honest 'different model, same task' case."""
-    out = []
-    for n in numbers:
-        acc = 0
-        for _ in range(abs(n)):
-            acc += abs(n)
-        out.append(acc)
-    return out
-
-
-def square_cheap_approximation(numbers: list) -> list:
-    """Faster and WRONG above 10 — the arm you want an eval to catch."""
-    return [n * n if abs(n) <= 10 else (abs(n) * 10) for n in numbers]
-
-
-def total_impl(squares: list) -> int:
-    return sum(squares)
-
-
-ARMS = {
-    "exact": {Square: square_exact, Total: total_impl},
-    "repeated_addition": {Square: square_by_repeated_addition, Total: total_impl},
-    "cheap_approximation": {Square: square_cheap_approximation, Total: total_impl},
-}
-
-#: The eval corpus. The last case is the one that separates the arms — name the unit, then run it.
+#: Stage 2's own corpus — small, and the last two rows are what separate the arms.
 CORPUS = [[1, 2, 3], [4, 5], [12], [3, 20]]
 
 
