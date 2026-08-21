@@ -56,30 +56,30 @@ def check_strategy(plan: Plan, strategy: Strategy) -> tuple[str, ...]:
     `summarize(doc)` will not accept the keyword `document`, and it CANNOT tell you what that
     function returns. Return shape is checked by the runner at execution — see `local.py`.
 
-    ⚠️ Returns findings rather than raising, matching `validate()`: one wrong signature usually
+    ⚠️ Returns violations rather than raising, matching `validate()`: one wrong signature usually
     produces several complaints, and seeing all of them is how you tell one root cause from three
     problems.
     """
-    findings: list[str] = []
+    violations: list[str] = []
     for step in plan.steps:
         cls = type(step)
         impl = strategy.get(cls)
         if impl is None:
-            findings.append(
+            violations.append(
                 f"{cls.__name__} has no implementation in this Strategy. A Step is a declaration; "
                 f"something has to say how it is performed.")
             continue
         if not callable(impl):
-            findings.append(f"{cls.__name__} is bound to {impl!r}, which is not callable.")
+            violations.append(f"{cls.__name__} is bound to {impl!r}, which is not callable.")
             continue
         if inspect.iscoroutinefunction(impl):
-            findings.append(
+            violations.append(
                 f"{cls.__name__} is bound to async {impl.__name__}. Every runner here is "
                 f"synchronous, and calling it would return a coroutine that nobody awaits — a "
                 f"result-shaped object that is not the result. Wrap it, or add an async runner.")
             continue
-        findings.extend(_signature_findings(cls, impl))
-    return tuple(findings)
+        violations.extend(_signature_findings(cls, impl))
+    return tuple(violations)
 
 
 def _signature_findings(cls: type[Step], impl: Implementation) -> list[str]:
@@ -103,12 +103,12 @@ def _signature_findings(cls: type[Step], impl: Implementation) -> list[str]:
     params = sig.parameters
     takes_kwargs = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
 
-    findings: list[str] = []
+    violations: list[str] = []
     if not takes_kwargs:
         unaccepted = [n for n in wanted if n not in params
                       or params[n].kind is inspect.Parameter.POSITIONAL_ONLY]
         if unaccepted:
-            findings.append(
+            violations.append(
                 f"{cls.__name__} declares input(s) {unaccepted} that {_name(impl)}{sig} will not "
                 f"accept by keyword. The runner calls by Variable name, so the parameter has to be "
                 f"spelled the same.")
@@ -120,12 +120,12 @@ def _signature_findings(cls: type[Step], impl: Implementation) -> list[str]:
                                inspect.Parameter.POSITIONAL_ONLY)]
     unfed = [n for n in required if n not in wanted]
     if unfed:
-        findings.append(
+        violations.append(
             f"{_name(impl)}{sig} requires {unfed}, which {cls.__name__} does not declare as an "
             f"input. Either it is a Variable the Step should consume — in which case the Plan is "
             f"missing an edge — or it is a dependency, which belongs in the implementation's "
             f"closure, not in the dataflow.")
-    return findings
+    return violations
 
 
 def _name(impl: Implementation) -> str:

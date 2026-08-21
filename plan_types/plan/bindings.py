@@ -106,7 +106,7 @@ def execution_order(plan: Plan) -> tuple[Step, ...]:
     """Steps in a valid execution order — Kahn's algorithm over the bindings.
 
     ⚠️ RAISES on a cycle, because there is no correct answer to return. That is not the acyclicity
-    invariant: `topology.acyclic` REPORTS a cycle as a finding, this function refuses to invent an
+    invariant: `topology.acyclic` REPORTS a cycle as a violation, this function refuses to invent an
     order. A caller who has not run that invariant gets the error here rather than a wrong order.
 
     Ties are broken by class name so two independent Steps never reorder between runs — otherwise a
