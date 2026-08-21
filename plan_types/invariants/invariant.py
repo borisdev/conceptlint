@@ -18,13 +18,13 @@ New categories should emerge from a real failure, not from symmetry.
 
 ## What a rule carries, and why each field is required
 
-    id          stable, so a finding can be suppressed, tracked or resolved by identity rather
+    id          stable, so a violation can be suppressed, tracked or resolved by identity rather
                 than by matching its message text
     statement   what must be true, in one sentence — the thing a human agrees or disagrees with
     check       executable. A rule with no check is a preference; say so in prose instead.
 
 ⚠️ `check` RAISES rather than returning a bool. A boolean loses the detail — which Step, which
-Variable, which two names — and that detail is the entire value of the finding. `Violation` carries
+Variable, which two names — and that detail is the entire value of the violation. `Violation` carries
 the invariant's id so the message and the identity never drift apart.
 """
 from __future__ import annotations
@@ -101,7 +101,7 @@ class SemanticInvariant(Generic[T]):
 def validate(subject: T, invariants: Iterable[SemanticInvariant[T]]) -> list[Violation]:
     """Run every invariant and COLLECT the failures rather than stopping at the first.
 
-    ⚠️ Deliberately not fail-fast. One cycle can cause three findings, and seeing all three is how
+    ⚠️ Deliberately not fail-fast. One cycle can cause three violations, and seeing all three is how
     a reader tells a single root cause from three separate problems. Stopping at the first turns
     every validation into a guessing game about what else is wrong.
 
