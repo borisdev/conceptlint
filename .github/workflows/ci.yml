@@ -37,10 +37,13 @@ jobs:
       # Dogfood. If this tool cannot survive being pointed at its own source, it has no business
       # being pointed at anyone else's.
       #
-      # `conceptlint/` and not `.` on purpose: evals/minimal/ holds deliberate before/after pairs,
-      # so linting them measures the fixtures rather than the code. Measured — 5 findings against
-      # `.`, 3 against the package, and both extras were eval twins.
-      - name: lint plan_types with itself
+      # `.` — the WHOLE repo. This said "`conceptlint/` and not `.` on purpose" until 2026-08-20,
+      # narrowed so evals/minimal/'s deliberate before/after pairs would not be counted. That
+      # narrowing also excluded examples/ and tests/, and a duplicate `Square` sat in
+      # examples/pydantic_graph_docs/ unreported until someone asked whether the linter earned its
+      # place. The intentional pairs are carried IN the baseline number instead, where they are
+      # visible, rather than by excluding a path, where the exclusion is invisible.
+      - name: lint the repo with itself
         run: |
           BASELINE=$(grep -vE '^\s*(#|$)' .conceptlint-baseline | head -1)
 
@@ -50,7 +53,7 @@ jobs:
           # --import, or `declared()` returns [] and grounded-citation checks NOTHING while
           # reporting green. Registration is subclassing, so a Concept in an unimported
           # module does not exist — measured: without this the concept list was empty.
-          OUT=$(uv run conceptlint plan_types/ 2>&1); RC=$?
+          OUT=$(uv run conceptlint . 2>&1); RC=$?
           # ⚠️ `set -e` stays OFF across the count. `grep -c` exits 1 when it counts ZERO, so with
           # `bash -e` this line killed the job before its first echo — the gate went red precisely
           # when plan_types/ was clean, and had done since the baseline reached 0 on 2026-08-17.

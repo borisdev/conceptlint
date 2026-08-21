@@ -1,14 +1,15 @@
-# Findings in plan_types/ — the package this repo now ships. CI fails only if this rises.
+# Findings across the WHOLE REPO. CI fails only if this rises.
 #
-# ⚠️ WAS 4, POINTED AT THE WRONG DIRECTORY. The baseline counted duplicates between
-# `conceptlint/dataflow/` and `conceptlint/ontologies/pplan/concepts.py` — Step, Plan, Activity and
-# Entity each declared twice, once as a P-Plan Concept and once as the implementation.
+# ⚠️ WAS `plan_types/` ONLY, AND THAT IS HOW A DUPLICATE SHIPPED (2026-08-20).
+# `Square` was declared twice with different shapes, in examples/pydantic_graph_docs/ — outside the
+# gate — and sat there unreported until someone asked whether the linter was earning its place. The
+# narrowing was deliberate, to dodge the intentional before/after pairs in evals/minimal/, and it
+# silently took examples/ and tests/ with it.
 #
-# The PlanTypes refactor RESOLVED all four: `Concept` is gone, and Plan/Step/Variable exist once,
-# in plan_types/plan/. The duplicate the tool reported about itself is the duplicate the redesign
-# removed — which is the outcome, arriving quietly as a number going down.
+# This file already carried that exact warning about a DIFFERENT directory: "a gate pointed at the
+# wrong directory reads exactly like a clean codebase." It happened again, one directory over.
 #
-# But CI was still linting `conceptlint/`, now a near-empty shell, and would have reported 0
-# forever whatever landed in plan_types/. A gate pointed at the wrong directory reads exactly like
-# a clean codebase.
-0
+# So: lint `.`, and carry the known-deliberate duplicates in the number rather than by excluding a
+# path. The six are 4 ontology-vs-implementation pairs (Plan, Step, Activity, Entity) and the 2
+# before/after pairs in evals/minimal/sibling_refinement, which exist to BE duplicates.
+6
