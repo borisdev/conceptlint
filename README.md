@@ -342,13 +342,24 @@ Install into `~/.claude/settings.json`, merging with any hooks already there:
 ```json
 {"hooks": {"PreToolUse": [{"matcher": "Write|Edit",
   "hooks": [{"type": "command",
-             "command": "<path-to-venv>/bin/python3 -m conceptlint.integrations.pre_write"}]}]}}
+             "command": "<path-to-venv>/bin/python3",
+             "args": ["-m", "conceptlint.integrations.pre_write"]}]}]}}
 ```
 
-⚠️ **No `2>/dev/null`, no `|| true`.** The first swallows the message, the second masks the exit
-code — either one silently turns this back into a hook that runs and reports nothing. Use the
-interpreter of an environment where `conceptlint` and `plan_types` are importable; a bare `python3`
-cannot, and a missing one exits 127, which does not block. It reads the repo root from the hook payload's `cwd`, so one install
+**Use the `args` exec form, not a shell string.** With `args` the interpreter is spawned directly
+and no shell is involved, so `2>/dev/null` and `|| true` are not expressible. That matters more than
+it looks: the first swallows the message, the second masks the exit code, and either one silently
+turns this into a hook that runs and reports nothing while appearing installed. That is exactly how
+the earlier version of this hook was invisible for its entire life.
+
+Use the interpreter of an environment where `conceptlint` and `plan_types` are importable; a bare
+`python3` cannot, and a missing one exits 127, which does not block.
+
+### And a command for the times a hook is too narrow
+
+`.claude/commands/lint-plan.md` — `/lint-plan` runs conceptlint over the whole repo and reports by
+invariant id. Copy it to `~/.claude/commands/` to have it everywhere. It exists because the hook only
+fires on new Pydantic models, and the interesting violations are often somewhere else entirely. It reads the repo root from the hook payload's `cwd`, so one install
 covers every project.
 
 ### ⚠️ Four things it does not do, measured rather than assumed
