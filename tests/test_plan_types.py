@@ -333,3 +333,24 @@ def test_a_multistep_knows_whether_its_inner_plan_iterates() -> None:
 
     straight = MultiStep(name="chain", steps=(Write(),))
     assert straight.iterative is False
+
+
+def test_the_readme_does_not_promise_rdf_it_does_not_have() -> None:
+    """The grounding is a CHECKED VOCABULARY, not a serialization format.
+
+    The README says a Plan is legible to anything else that speaks P-Plan, and immediately says
+    there is no import or export. That second sentence is the one that stops the first from being
+    an overclaim, so both halves are asserted here: the disclaimer must be present, and no RDF
+    machinery may quietly appear that would make it stale in the other direction.
+    """
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[1]
+    readme = (root / "README.md").read_text()
+    assert "no RDF import or export" in readme
+
+    sources = " ".join(f.read_text() for f in (root / "plan_types").rglob("*.py"))
+    for term in ("rdflib", "to_turtle", "to_jsonld"):
+        assert term not in sources, (
+            f"{term} exists now — the README's 'a door, not a feature' paragraph is stale and "
+            f"understates what ships")
