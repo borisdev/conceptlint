@@ -290,39 +290,13 @@ cited IRI names a real term. That rule exists because this package once cited `p
 memory and implemented something P-Plan doesn't describe. A citation nobody can follow is
 decoration with the authority of a fact.
 
-### Why a borrowed vocabulary rather than our own
+### A borrowed vocabulary, so a Plan can be handed over
 
-Because a Plan is meant to be **handed over**, and a private schema cannot be.
+`p-plan:Step` has a definition we did not write, at an address anyone can resolve — so the Plan a
+product owner argues about in a PRD is the same object an engineer compiles onto Pydantic Graph, and
+anything else speaking P-Plan (or a model asked for one) means the same thing by `Step`.
 
-`p-plan:Step` has a definition we did not write, published at an address anyone can resolve. That
-makes a Plan legible to three audiences at once, none of whom need to read each other's code:
-
-```
-someone who owns WHAT THE PROCESS IS        writes and validates the Plan
-                                            no prompt, no model, no function body, no runtime
-                    │
-                    ▼
-someone who owns HOW IT IS PERFORMED        binds a Strategy — this model, that prompt
-                    │
-                    ▼
-someone who owns HOW IT RUNS                picks the engine, the concurrency, the retries
-```
-
-They are working on **one artifact**, not three documents that have to be kept in sync. The Plan a
-product owner can argue about in a PRD is the same object an engineer compiles onto Pydantic Graph —
-because the thing that makes it arguable (typed Steps, named edges, no runtime detail) is the same
-thing that makes it compilable.
-
-And the vocabulary being **standard** rather than ours is what leaves the door open past this
-package: another tool that speaks P-Plan means the same thing by `Step` that we do, and a model
-asked to produce a `p-plan:Plan` is being asked for a term with a published definition it can be
-held to — not a private shape it has to infer from examples.
-
-⚠️ **A door, not a feature.** There is **no RDF import or export** — no Turtle, no JSON-LD, no
-`rdflib` anywhere in the package. What exists is a vocabulary whose every citation is checked
-against a vendored copy of the ontology. That is the precondition for interoperating with something
-else that speaks P-Plan; it is not the interoperation, and this README is not going to imply
-otherwise while `grep -rn rdflib plan_types/` returns nothing.
+⚠️ A door, not a feature: there is **no RDF import or export** yet.
 
 ## Status — honest
 
