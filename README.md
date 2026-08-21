@@ -326,6 +326,42 @@ for shows up at volume: one codebase downstream has **18 variants of one extract
 distinct step names, 47% of them used exactly once**, with `enrich` and `enrich_one_finding`
 coexisting in the same file. A toy cannot show that, and this README will not pretend the toy does.
 
+## Optional: interrupt the agent before it writes a duplicate — EXPERIMENTAL
+
+A linter reports after the fact. `conceptlint/integrations/pre_write.py` is a Claude Code
+`PreToolUse` hook that asks the question **before** the file is written:
+
+```
+⛔ `EvidenceLookup` looks like `EvidenceSearch`, which already exists at
+   libs/.../find_evidence.py:86
+   Reuse it, or say what distinction `EvidenceLookup` carries that it does not.
+```
+
+Install into `~/.claude/settings.json`, merging with any hooks already there:
+
+```json
+{"hooks": {"PreToolUse": [{"matcher": "Write|Edit",
+  "hooks": [{"type": "command",
+             "command": "<path-to-venv>/bin/python3 -m conceptlint.integrations.pre_write 2>/dev/null || true"}]}]}}
+```
+
+Use the interpreter of an environment where `conceptlint` and `plan_types` are importable — a bare
+`python3` will not find them. It reads the repo root from the hook payload's `cwd`, so one install
+covers every project.
+
+### ⚠️ Four things it does not do, measured rather than assumed
+
+- **It only sees NEW Pydantic models.** A new `Step` subclass produces nothing — verified by piping
+  one in. Same root cause as the discovery gap in `naming/records.py`: a class is only recognised if
+  its base was already found.
+- **It cannot interrupt in an auto-accept permission mode.** It returns `permissionDecision: "ask"`,
+  which `default` mode turns into a prompt and permissive modes answer for you. The check still
+  runs; nobody reads the answer.
+- **It is silent on almost every write, by design.** A hook that comments on every edit is removed
+  within a day, and then the useful interrupt is gone too.
+- **It fails open on everything** — unparseable source, missing import, timeout. A convenience must
+  never be able to block work.
+
 ## Settled: PlanTypes is the product
 
 Are semantic invariants the general product, with PlanTypes as the first ontology-grounded use
