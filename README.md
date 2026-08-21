@@ -1,45 +1,17 @@
 # PlanTypes
 
-**From Claude Code Plan Mode to Plan Types.**
+**Declarative, typed workflow plans, separated from execution.**
 
-Turn an agent's plan into a typed process specification — one you can validate, draw, and hold it to.
+LangGraph, Temporal and [Pydantic Graph](https://pydantic.dev/docs/ai/graph/builder/) *execute* a
+workflow, and each is good at it. This is the layer above: the workflow plan you settle — and can
+validate, draw and argue about — **before** you pick an engine, or instead of picking one, since
+plenty of workflows never need retries or durability.
 
-Claude Code's Plan Mode says *"here's what I intend to do."* It's prose, it's gone when the conversation moves on,
-and nothing checks that the code matches it. PlanTypes makes the same intent an artifact:
+## The plan exists before the code does
 
-```
-Plan
-├── typed Steps
-├── typed Variables
-├── explicit dependencies
-├── invariants
-└── visualization
-```
-
-> **Plan Mode describes intent. PlanTypes makes the plan typed, inspectable, and testable.**
-
-This is not a replacement for Claude Code or Cursor. It's the thing their plans should produce.
-
-The category word is **workflow**. LangGraph, Temporal and Pydantic Graph all *execute* one, and
-each is good at it. This layer sits above them: the workflow plan you settle — and can validate,
-draw and argue about — **before** choosing an engine, or instead of choosing one, since plenty of
-processes never need retries or durability at all.
-
-> **Declarative, typed workflow plans, separated from execution.**
-
-The reason to separate them is cognitive load, and it is not a metaphor. Working directly in an
-execution framework, a developer and a coding agent reason simultaneously about domain concepts,
-schemas, step boundaries, data dependencies, async behaviour, retries, timeouts, workers,
-serialization and framework APIs. Half of those have nothing to do with whether the process is
-*right*. Settle the process first, with fewer things in the room.
-
-## 60 seconds
+That is the whole claim, and it is one snippet:
 
 ```python
-from plan_types import Plan, Step, Variable, render_mermaid, validate
-from plan_types.execution import LocalRunner, execute
-from plan_types.invariants import topology, typing
-
 document = Variable("document", Document)
 outline  = Variable("outline", Outline)
 summary  = Variable("summary", Summary)
@@ -50,14 +22,12 @@ class MakeOutline(Step):
 class Summarize(Step):
     inputs, outputs = (document, outline), (summary,)   # fans in — needs both
 
-plan = Plan(
-    name="summarize_document",
-    steps=(MakeOutline(), Summarize()),
-    declared_inputs=(document,),        # what the Plan expects to be handed
-)
+plan = Plan(name="summarize_document", steps=(MakeOutline(), Summarize()),
+            declared_inputs=(document,))
 
-validate(plan, [*topology.ALL, *typing.ALL])            # → []
+validate(plan, [*topology.ALL, *typing.ALL])   # → []
 print(render_mermaid(plan))
+print(plan.shape())                            # → ((Document,), (Summary,))
 ```
 
 ```mermaid
@@ -74,14 +44,15 @@ flowchart TD
   class IN_document,OUT_summary port;
 ```
 
-Every arrow is read from the bindings. Add an input and the picture changes with no edit to the
-renderer — a hand-drawn diagram is a claim about the code that stops being true the moment a Step
-moves, and nothing tells you. That block is generated from
-[`examples/hello/flow.py`](examples/hello/flow.py), which `tests/test_execution.py` runs.
+**Not one line of that workflow is implemented.** No prompt, no model, no function body, no runtime.
+The process is checked, drawn and type-checked anyway — because a Step declares *what a
+transformation is*, and nothing more.
 
-**Notice what a Step does not contain.** No prompt, no model name, no retry policy, no `run`. It
-declares that an operation exists and what flows through it. How it is performed is chosen
-separately, and chosen *per execution*:
+Every arrow is read from the bindings, so adding an input changes the picture with no edit to the
+renderer. A hand-drawn diagram is a claim about the code that stops being true the moment a Step
+moves, and nothing tells you.
+
+## How it is performed comes later, and is chosen per run
 
 ```python
 def summarize_fast(document: Document, outline: Outline) -> Summary: ...
@@ -90,17 +61,70 @@ def summarize_precise(document: Document, outline: Outline) -> Summary: ...
 fast    = {MakeOutline: outline_by_sentence, Summarize: summarize_fast}
 precise = {MakeOutline: outline_by_sentence, Summarize: summarize_precise}
 
-execute(plan, {"document": doc}, LocalRunner(fast))       # Ninety seconds: Name the unit.
-execute(plan, {"document": doc}, LocalRunner(precise))    # Ninety seconds: Name the unit; Then run it; …
+execute(plan, {"document": doc}, LocalRunner(fast))
+execute(plan, {"document": doc}, LocalRunner(precise))
 ```
 
-**The `plan` object is not touched between those two lines.** That is the property worth having: an
-experiment can say *the logical process was held constant, only the implementation of `Summarize`
-changed* — and mean it, because the same declaration served both arms.
+**The `plan` object is not touched between those two lines.** An experiment can therefore say *the
+logical process was held constant, only the implementation of `Summarize` changed* — and mean it,
+because the same declaration served both arms.
 
 The alternative is to declare `SummarizeV1` and `SummarizeV2` as separate Steps, and that is not a
-workaround, it is two names for one concept — the `naming.naming_drift` this package exists to
-report, committed inside the package that reports it.
+workaround: it is two names for one concept, the `naming.naming_drift` this package reports.
+
+## How is this different from Pydantic Graph?
+
+It is not a competitor and does not want to be one. Pydantic Graph already owns steps, typed
+execution, edges, branching, `map`, `join`, reducers, state, dependency injection, execution and
+rendering — all of it well. `plan_types.execution.pydantic_graph` **compiles a Plan onto it**, using
+its real primitives, and `tests/test_pydantic_graph.py` asserts both runtimes return the same
+answer.
+
+The difference is what a Step *is*. Theirs is executable — the function is both the node and the
+implementation. Ours is a declaration, so several implementations are peers rather than one being
+privileged and the rest overrides.
+
+That shows up in the diagram. Same workflow — their `parallel_processing.py`, `map` → `square` →
+join → total — rendered by each:
+
+```
+THEIRS — graph.render()                    OURS — render_mermaid(plan)
+
+stateDiagram-v2                            flowchart TD
+  state map <<fork>>                         IN_numbers(["numbers: list"])
+  square                                     Square
+  state reduce_list_append <<join>>          Total
+  total                                      OUT_total(["total: int"])
+
+  [*] --> map                                IN_numbers -- numbers --> Square
+  map --> square                             Square -- squares --> Total
+  square --> reduce_list_append              Total --> OUT_total
+  reduce_list_append --> total
+  total --> [*]
+```
+
+Two real differences, and neither is a rendering gap:
+
+- **Theirs has no types on its edges.** It cannot: an edge carries whatever the function returned,
+  and there is no name for it. Ours labels every edge with the Variable that flows.
+- **Theirs draws the machinery** — `map <<fork>>` and `reduce_list_append <<join>>` are nodes. Ours
+  draws the process; the fan-out is a property of `Square` and does not appear. Their picture
+  answers *how will this execute*, ours answers *what is this workflow*. Both are correct.
+
+And the fan-out is one declaration on the Step, in their vocabulary:
+
+```python
+class Square(Step):
+    inputs, outputs = (number,), (squared,)   # int -> int, exactly their `square`
+    map_over = (numbers, squares)             # list[int] in, list[int] out
+```
+
+Under `LocalRunner` that is a sequential loop. Compiled, it is their real `.map()` and
+`join(reduce_list_append)`. **Same declaration, nothing edited.** Their documented output,
+`[1, 4, 9, 16, 25]`, is asserted on both.
+
+**→ [`examples/pydantic_graph_docs/`](examples/pydantic_graph_docs/)** — their own docs examples,
+copied verbatim, run through this layer, with a control arm that uses no Plan at all.
 
 ## Why this exists
 
@@ -268,32 +292,30 @@ decoration with the authority of a fact.
 
 ## Status — honest
 
-**Works today:** typed Plans, the four invariant categories, `render_mermaid`, P-Plan/PROV-O
-grounding with vendored ontologies, `Strategy` + `check_strategy`, and `LocalRunner` — sequential,
-in-process, no retries. 142 tests.
+**Works today:** typed Plans, the four invariant categories, `render_mermaid` (with an optional
+Strategy overlay), P-Plan/PROV-O grounding with vendored ontologies, `Strategy` + `check_strategy`,
+`LocalRunner`, `map_over` fan-out, and `to_pydantic_graph` — which emits Pydantic Graph's real
+`.map()` and `join`, not a loop wearing the name. 158 tests.
 
-**Also works today:** `to_pydantic_graph(plan, strategy)` — the same Plan and the same Strategy
-compiled onto [Pydantic Graph](https://pydantic.dev/docs/ai/graph/graph/) and run there, with
-nothing edited in between. `tests/test_pydantic_graph.py` asserts both runtimes return the same
-answer, because that is the package's central claim and a claim like it has to be executable.
+### What it does NOT do, stated plainly
 
-**Not built:** an async `StepRunner`, Temporal and LangGraph adapters, `Fork`/`Join` (Pydantic Graph
-2.x has both, and a Plan's bindings already say which Steps are independent — so parallelising is
-derivable rather than declarable, which is the version worth building), persistence, retries,
-scheduling, embedding-based similarity, and agent-hook integration. The pattern above describes what the artifact is *for*; the hooks that would put it in
-an agent's loop are not wired yet.
+These are the first four objections anyone will raise, so they are answered here rather than waited
+for:
 
-⚠️ **`LocalRunner` is synchronous, and an `async def` implementation is refused rather than
-accepted.** Calling one from sync code returns a coroutine — truthy, with a repr, flowing into the
-next Step as though it were data. `check_strategy` reports it before execution and the runner raises
-at the call site. An `AsyncStepRunner` lands when there is a real async implementation to run.
+| | |
+|---|---|
+| **cycles do not run** | A Plan may BE cyclic — it constructs, wires, renders, and `topology.acyclic` reports it. But it cannot execute, and the reason is not the toposort: **a Plan carries no termination predicate**. Their `Feedback.run()` returns `WriteEmail \| End[Email]` and the predicate lives in the node body, which is the right place for it and is theirs. `MultiStep.until` declares an iterative region; collapsing a strongly connected component into one is designed, not built. |
+| **`Fork` / `Join` are not first-class** | Only `map_over`. Pydantic Graph 2.x has both as concepts; a Plan can currently declare a fan-out over a list and nothing else. |
+| **no async runner** | `LocalRunner` is synchronous by decision and REFUSES an `async def` rather than returning an un-awaited coroutine. A compiled graph awaits it fine. |
+| **at one arm, this is overhead** | Measured, not conceded reluctantly: with a single implementation and two steps, a Plan costs a declaration and buys nothing. It starts paying when there is a second arm, or a second reader. |
 
-Not on PyPI. From source:
+**Not built:** Temporal and LangGraph adapters, persistence, retries, scheduling,
+concurrency, embedding-based similarity, agent-hook integration.
 
-```bash
-git clone https://github.com/borisdev/plan-types && cd plan-types && uv sync
-uv run pytest -q
-```
+⚠️ **And the honest scale caveat.** Everything demonstrable here is small. The failure this is built
+for shows up at volume: one codebase downstream has **18 variants of one extraction pipeline, 23
+distinct step names, 47% of them used exactly once**, with `enrich` and `enrich_one_finding`
+coexisting in the same file. A toy cannot show that, and this README will not pretend the toy does.
 
 ## Settled: PlanTypes is the product
 

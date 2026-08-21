@@ -260,21 +260,27 @@ you need to** — "dropping outliers is what fixed `[1, 2, 50]`" requires `DropO
 declared Step, because you can only score what is declared. "Arm B beat arm A" does not. Choosing is
 the modelling act; the Plan makes you write the choice down somewhere checkable.
 
-## Measured, on their `parallel_processing.py`
+## ⚠️ A measurement retracted
 
-Three implementations of one Step, against the same three written directly in GraphBuilder:
+This section reported "5 lines with a Plan, 37 for the control". **The 37 was three copy-pasted
+builders.** The obvious control is a parameterised one, which handles all three arms in twelve lines
+and was verified to produce identical results. Measuring against code nobody would write is not a
+measurement, and a reader who noticed would have been right to discard everything around it.
 
-    with a Plan    5 lines    2 Step classes; 3 arms are 3 dict entries
-    control       37 lines    3 build_* functions
+There is no line-count claim here now. At this scale there is no volume advantage worth naming, and
+saying so is worth more than the number was.
 
-    `async def square(`  3x in the control      `g.join(`   3x
-    `async def total(`   3x in the control      `.map()`    4x
+What survives a fair control — checked, not asserted:
 
-The join wiring and the reducer are written three times in the control. Change the reducer and you
-change it three times — or change one, and the other two silently stop being the same experiment.
+- **The Plan validates and renders with NOTHING implemented.** `build(square_impl)` cannot produce a
+  graph, a diagram or a type check until an implementation exists. That is the "agree the process
+  first" claim, and it is the only one that does not shrink when the control is written properly.
+- **Their diagram has no types on its edges**, because an edge carries whatever the function
+  returned and there is no name for it. Ours labels every edge with the Variable that flows.
+- **Their diagram draws the machinery**: `map <<fork>>` and `reduce_list_append <<join>>` are nodes
+  in it. Ours draws the process and does not mention them.
 
-⚠️ And the honest other end of the curve: at stage 1 — one arm, two steps — the Plan layer is pure
-overhead. It costs a declaration and buys nothing until there is a second arm.
+And the honest other end: at one arm and two steps the Plan layer is pure overhead.
 
 ## Deliberately out of scope
 
