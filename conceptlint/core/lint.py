@@ -22,7 +22,7 @@ import re
 import sys
 from typing import Iterable, Sequence
 
-from conceptlint.core.concept import Concept, declared
+from plan_types.naming.declared_term import DeclaredTerm, declared
 from conceptlint.core.invariant import ConceptIssue, Invariant, registered
 _WORD = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
 
@@ -32,7 +32,7 @@ def words(name: str) -> set[str]:
     return {w.lower() for w in _WORD.findall(name.replace("_", " ")) if len(w) > 2}
 
 
-def _ancestry(c: type[Concept]) -> list[type[Concept]]:
+def _ancestry(c: type[DeclaredTerm]) -> list[type[DeclaredTerm]]:
     out, seen, cur = [], set(), c.REFINES
     while cur is not None and cur not in seen:
         seen.add(cur)
@@ -41,7 +41,7 @@ def _ancestry(c: type[Concept]) -> list[type[Concept]]:
     return out
 
 
-def _related(a: type[Concept], b: type[Concept]) -> bool:
+def _related(a: type[DeclaredTerm], b: type[DeclaredTerm]) -> bool:
     """Is their relationship already declared — as ancestor, descendant, OR sibling?
 
     ⚠️ The sibling case is not a nicety. `EvidenceFinding` and `ResearchFinding` both refining
@@ -62,9 +62,9 @@ class Ambiguity(Invariant):
            "one. `Evidence` as a study, as support for a claim, and as a citation is three "
            "concepts wearing one word, and every downstream type inherits the confusion.")
 
-    def check(self, concepts: Sequence[type[Concept]]) -> Iterable[ConceptIssue]:
-        by_id: dict[str, list[type[Concept]]] = {}
-        by_name: dict[str, list[type[Concept]]] = {}
+    def check(self, concepts: Sequence[type[DeclaredTerm]]) -> Iterable[ConceptIssue]:
+        by_id: dict[str, list[type[DeclaredTerm]]] = {}
+        by_name: dict[str, list[type[DeclaredTerm]]] = {}
         for c in concepts:
             by_id.setdefault(c.ID, []).append(c)
             by_name.setdefault(c.__name__.lower(), []).append(c)
@@ -98,7 +98,7 @@ class CanonicalReuse(Invariant):
            "Left undeclared it becomes a second vocabulary, and code starts choosing between them "
            "by which import was nearer.")
 
-    def check(self, concepts: Sequence[type[Concept]]) -> Iterable[ConceptIssue]:
+    def check(self, concepts: Sequence[type[DeclaredTerm]]) -> Iterable[ConceptIssue]:
         for c in concepts:
             for other in concepts:
                 if c is other or _related(c, other):
@@ -133,7 +133,7 @@ class NearDuplicate(Invariant):
            "parent. Either one meaning has two names, or a distinction exists that nobody wrote "
            "down — and the second is only discoverable by reading both definitions.")
 
-    def check(self, concepts: Sequence[type[Concept]]) -> Iterable[ConceptIssue]:
+    def check(self, concepts: Sequence[type[DeclaredTerm]]) -> Iterable[ConceptIssue]:
         seen: set[tuple[str, str]] = set()
         for c in concepts:
             for other in concepts:
@@ -165,7 +165,7 @@ class ExplicitRefinement(Invariant):
            "A refinement whose definition matches its parent's is a duplicate that learned the "
            "password.")
 
-    def check(self, concepts: Sequence[type[Concept]]) -> Iterable[ConceptIssue]:
+    def check(self, concepts: Sequence[type[DeclaredTerm]]) -> Iterable[ConceptIssue]:
         for c in concepts:
             parent = c.REFINES
             if parent is None:
@@ -176,8 +176,8 @@ class ExplicitRefinement(Invariant):
                 continue
             if not getattr(parent, "ID", ""):
                 yield ConceptIssue(
-                    self.ID, f"{c.__name__} refines {parent.__name__}, which is not a declared Concept",
-                    [c.__name__], "REFINES must point at a Concept subclass with an ID")
+                    self.ID, f"{c.__name__} refines {parent.__name__}, which is not a declared DeclaredTerm",
+                    [c.__name__], "REFINES must point at a DeclaredTerm subclass with an ID")
                 continue
             if c.DEFINITION.strip().lower() == parent.DEFINITION.strip().lower():
                 yield ConceptIssue(
@@ -187,7 +187,7 @@ class ExplicitRefinement(Invariant):
                     "say what NARROWS, or delete the child and use the parent")
 
 
-def lint(concepts: Sequence[type[Concept]] | None = None) -> list[ConceptIssue]:
+def lint(concepts: Sequence[type[DeclaredTerm]] | None = None) -> list[ConceptIssue]:
     """Run every registered invariant. Empty list means pass — there is no passing issue."""
     subjects = list(concepts) if concepts is not None else declared()
     out: list[ConceptIssue] = []

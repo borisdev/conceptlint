@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import ClassVar, Iterable, Sequence
 
-from conceptlint.core.concept import Concept
+from plan_types.naming.declared_term import DeclaredTerm
 
 
 class ConceptIssue:
@@ -46,7 +46,7 @@ class ConceptIssue:
 class Invariant:
     """A semantic rule over the declared concepts.
 
-    Subclassing registers it, same as `Concept`. `LAW` says which of the two laws it serves, so a
+    Subclassing registers it, same as `DeclaredTerm`. `LAW` says which of the two laws it serves, so a
     reader can tell whether a rule is load-bearing or a convenience someone added.
     """
 
@@ -54,7 +54,7 @@ class Invariant:
     LAW: ClassVar[str] = ""      # "one-concept-one-meaning" | "one-meaning-one-concept"
     WHY: ClassVar[str] = ""      # the failure it prevents, not a restatement of the rule
 
-    def check(self, concepts: Sequence[type[Concept]]) -> Iterable[ConceptIssue]:
+    def check(self, concepts: Sequence[type[DeclaredTerm]]) -> Iterable[ConceptIssue]:
         raise NotImplementedError
 
 

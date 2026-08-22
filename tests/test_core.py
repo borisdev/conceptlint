@@ -10,21 +10,21 @@ from typing import ClassVar
 
 import pytest
 
-from conceptlint.core.concept import Concept
+from plan_types.naming.declared_term import DeclaredTerm
 from conceptlint.core.invariant import ConceptIssue, Invariant, registered, validate
 from conceptlint.core.lint import (Ambiguity, CanonicalReuse, ExplicitRefinement, NearDuplicate,
                                    words)
 
 
-def _c(name: str, *, id: str = "", definition: str = "d", refines=None, aka=()) -> type[Concept]:
-    """A throwaway Concept. Declared locally so the module registry stays untouched."""
-    return type(name, (Concept,), {
+def _c(name: str, *, id: str = "", definition: str = "d", refines=None, aka=()) -> type[DeclaredTerm]:
+    """A throwaway DeclaredTerm. Declared locally so the module registry stays untouched."""
+    return type(name, (DeclaredTerm,), {
         "ID": id or name.lower(), "DEFINITION": definition,
         "RATIONALE": "r", "REFINES": refines, "ALSO_KNOWN_AS": tuple(aka),
     })
 
 
-def _rules(inv: Invariant, *concepts: type[Concept]) -> list[ConceptIssue]:
+def _rules(inv: Invariant, *concepts: type[DeclaredTerm]) -> list[ConceptIssue]:
     return list(inv.check(list(concepts)))
 
 

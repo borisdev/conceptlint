@@ -8,12 +8,14 @@ truth, and this module reads what it already says:
     fields      the shape — the strongest duplicate signal there is
     bases       an EXPLICIT refinement, declared in the only way Python has
 
-⚠️ That last line is why `Concept.REFINES` is not needed here. `class ClinicalFinding(Finding)` has
-already declared the relationship; asking for a second declaration would be the "annotate your whole
-codebase" tax this approach exists to avoid.
+⚠️ That last line is why `DeclaredTerm.REFINES` is not needed here. `class ClinicalFinding(Finding)`
+has already declared the relationship; asking for a second declaration would be the "annotate your
+whole codebase" tax this approach exists to avoid.
 
-`Concept` stays, and stays optional — for the things ordinary Pydantic cannot express: an external
-ontology IRI, a recorded rationale, and words you have retired and want to keep dead.
+`DeclaredTerm` stays, and stays OPTIONAL for a user — for the things ordinary Pydantic cannot
+express: an external ontology IRI, a recorded rationale, and words you have retired and want to keep
+dead. This package's own types do inherit it, because there the tax is zero: nobody outside writes
+them. Optional for you, load-bearing for us, and the two must not be conflated.
 
 ## Why field sets and not names alone
 
@@ -33,7 +35,20 @@ from pydantic import BaseModel
 
 #: Bases that mean "this is a domain model". Pydantic first; a project's own model base is picked up
 #: transitively, because a class inheriting a discovered model is itself a model.
-MODEL_BASES = frozenset({"BaseModel", "RootModel"})
+#: Base names that mark a class as a model WITHOUT having to have seen the base declared first.
+#:
+#: ⚠️ `DeclaredTerm` is here for a measured reason, not for symmetry. Everything else resolves by
+#: `set(bases) & set(found)` — a base is followed only once discovery has already walked the file
+#: declaring it, and files are walked in sorted order. So the base's PATH decides whether anything
+#: inheriting it is seen at all (issue #5).
+#:
+#: Measured 2026-08-22: the base moved from `conceptlint/core/concept.py` to
+#: `plan_types/naming/declared_term.py` — same class, renamed — and `evals/` stopped sorting after
+#: it. Two duplicate declarations in `evals/minimal/sibling_refinement/` silently stopped being
+#: reported, and the whole-repo count fell from 6 to 4 in a way that reads exactly like an
+#: improvement. Naming the base here makes our own vocabulary order-independent. A USER's own base
+#: is still order-dependent, and that is still #5.
+MODEL_BASES = frozenset({"BaseModel", "RootModel", "DeclaredTerm"})
 
 _WORD = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
 
@@ -111,7 +126,7 @@ class ModelRecord(BaseModel):
         """The first sentence of the docstring — what the author says this MEANS.
 
         A docstring's opening line is the closest thing plain Pydantic has to a declared definition,
-        which is why `Concept.DEFINITION` is not needed to read one. Everything after it is usually
+        which is why `DeclaredTerm.DEFINITION` is not needed to read one. Everything after it is usually
         rationale, examples, or warnings: real content, but not the claim about identity.
         """
         head = self.docstring.strip().split("\n\n", 1)[0]

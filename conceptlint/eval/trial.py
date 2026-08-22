@@ -1,7 +1,7 @@
 """`AIEvalTrial` — competing Plans, one corpus, one judge, and numbers that may be compared.
 
 Ported from `nobs.case_ir.trial` and rewritten onto conceptlint's types: `Workflow` -> `Plan`,
-`Grounded`/`Vocab` -> `Concept`/`ALSO_KNOWN_AS`. The domain half (a medical gold corpus, a PICO
+`Grounded`/`Vocab` -> `DeclaredTerm`/`ALSO_KNOWN_AS`. The domain half (a medical gold corpus, a PICO
 measurement) stayed behind — this package must not learn a domain.
 
 ## The shape
@@ -26,7 +26,7 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
-from conceptlint.core.concept import Concept
+from plan_types.naming.declared_term import DeclaredTerm
 from plan_types.plan.plan import Plan
 
 
@@ -130,7 +130,7 @@ def _render_shape(shape: tuple[tuple[type, ...], tuple[type, ...]]) -> str:
 # ── the trial ─────────────────────────────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
-class AIEvalTrial(Concept):
+class AIEvalTrial(DeclaredTerm):
     """One task, its competing arms, the corpus they are read against, and the rules — fixed first.
 
     Named `AIEvalTrial` rather than `Trial` or `AITrial`: `Trial` reads as a clinical trial, and

@@ -1,7 +1,8 @@
 """A plan-time type must not carry runtime execution state.
 
-The handoff's worked example, ported from the retired `Concept`-based design to a
-`SemanticInvariant` over records read from ordinary Pydantic.
+The handoff's worked example, expressed as a `SemanticInvariant` over records read from ordinary
+Pydantic rather than as a rule over `DeclaredTerm` subclasses — so it fires on a user's models,
+which is where the Variable/Entity collapse actually happens.
 
     Variable   a named typed value SLOT in a plan       plan-time
     Entity     the value that actually flowed           runtime

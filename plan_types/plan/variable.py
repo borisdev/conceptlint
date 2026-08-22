@@ -14,17 +14,35 @@ Collapsing the two is the failure `evals/minimal/variable_entity_collapse` exist
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar, get_args, get_origin
+from typing import Any, ClassVar, Generic, TypeVar, get_args, get_origin
+
+from plan_types.naming.declared_term import DeclaredTerm
 
 T = TypeVar("T")
 
 
 @dataclass(frozen=True)
-class Variable(Generic[T]):
-    """A named, typed slot in a Plan."""
+class Variable(DeclaredTerm, Generic[T]):
+    """A named, typed slot in a Plan.
+
+    ⚠️ `DeclaredTerm` is a base with no fields and no `__init__`, so this stays exactly the frozen
+    dataclass it was — `@dataclass` collects fields only from bases that are themselves dataclasses,
+    and the six class attributes below are `ClassVar` and therefore not fields either.
+    """
 
     name: str
     type: type[T]
+
+    ID: ClassVar[str] = "variable"
+    DEFINITION: ClassVar[str] = (
+        "A typed placeholder connecting Steps in a Plan — the KIND of value, never a value."
+    )
+    RATIONALE: ClassVar[str] = (
+        "Wiring Steps by artifact-kind STRINGS makes a typo a silent rewiring: the graph still "
+        "builds, the types are unchecked, and the mistake surfaces as a shape error much later."
+    )
+    ONTOLOGY_IRI: ClassVar[str] = "http://purl.org/net/p-plan#Variable"
+    ALSO_KNOWN_AS: ClassVar[tuple[str, ...]] = ("DataFlowValue", "Port", "Slot")
 
     def __post_init__(self) -> None:
         if not self.name:

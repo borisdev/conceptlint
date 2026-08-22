@@ -10,6 +10,20 @@
 # wrong directory reads exactly like a clean codebase." It happened again, one directory over.
 #
 # So: lint `.`, and carry the known-deliberate duplicates in the number rather than by excluding a
-# path. The six are 4 ontology-vs-implementation pairs (Plan, Step, Activity, Entity) and the 2
-# before/after pairs in evals/minimal/sibling_refinement, which exist to BE duplicates.
-6
+# path.
+#
+# WAS 6 until 2026-08-22: 4 ontology-vs-implementation pairs (Plan, Step, Activity, Entity) plus
+# the 2 before/after pairs below. The 4 are gone because the pair is gone — `DeclaredTerm` is now
+# the base of the real types, so `conceptlint/ontologies/pplan/` no longer describes them from the
+# side. Those 4 were never a codebase defect; they were the linter correctly reporting that we had
+# declared our vocabulary twice.
+#
+# ⚠️ Lowering this number is only honest when a finding stopped EXISTING, not when it stopped being
+# FOUND. In the same change the count briefly read 4, because moving the base to
+# `plan_types/naming/` put it after `evals/` in sorted order and `discover_models` silently stopped
+# resolving the two pairs below (issue #5). A count that falls looks like progress in both cases.
+# Read the findings, not the number.
+#
+# The 2 remaining are the before/after pairs in evals/minimal/sibling_refinement, which exist to BE
+# duplicates.
+2

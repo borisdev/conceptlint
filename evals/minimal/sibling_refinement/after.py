@@ -1,8 +1,8 @@
 """The distinction made explicit: both narrow one canonical Finding."""
-from conceptlint.core.concept import Concept
+from plan_types.naming.declared_term import DeclaredTerm
 
 
-class Finding(Concept):
+class Finding(DeclaredTerm):
     ID = "finding"
     DEFINITION = "Something a study reports."
     RATIONALE = "r"

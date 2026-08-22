@@ -123,19 +123,18 @@ def test_pplan_does_not_require_acyclicity(pplan):
 # ── what WE implement, asserted against the above ────────────────────────────────────────────────
 
 def test_every_ontology_iri_we_cite_exists_in_the_vendored_ontology(pplan):
-    """A citation to a term that is not in the source is the cheapest version of this bug."""
-    from plan_types.plan import Plan, Step, Variable, execution_order
-    from conceptlint.ontologies.pplan import concepts
+    """A citation to a term that is not in the source is the cheapest version of this bug.
 
-    cited = set()
-    for mod in (Step, Variable, Plan):
-        iri = getattr(mod, "ONTOLOGY_IRI", "")
-        if iri:
-            cited.add(iri)
-    for name in dir(concepts):
-        iri = getattr(getattr(concepts, name), "ONTOLOGY_IRI", "") if not name.startswith("_") else ""
-        if isinstance(iri, str) and iri:
-            cited.add(iri)
+    ⚠️ Reads the `DeclaredTerm` registry rather than a hand-listed tuple of classes. The hand-list
+    was `(Step, Variable, Plan)` plus a `dir()` sweep of the toy declarations in
+    `conceptlint/ontologies/pplan/` — so `MultiStep` and `Service`, which both carry an IRI, were
+    never checked by it, and adding a seventh term would have gone unchecked too. A guard over a
+    list somebody remembers to extend is a guard that goes quiet exactly when the vocabulary grows.
+    """
+    import plan_types.plan  # noqa: F401 — the declarations must be imported to be declared
+    from plan_types.naming.declared_term import declared
+
+    cited = {c.ONTOLOGY_IRI for c in declared() if c.ONTOLOGY_IRI}
 
     assert cited, "nothing cites an ontology — this guard would be checking nothing"
     for iri in sorted(cited):
@@ -232,13 +231,13 @@ def test_this_packages_own_citations_resolve():
     """The shipped vocabulary, checked against the shipped ontologies."""
     from plan_types.invariants import validate
     from plan_types.invariants.provenance import ALL as PROV
+    import plan_types.plan  # noqa: F401 — the declarations must be imported to be declared
+    from plan_types.naming.declared_term import declared
     from plan_types.naming.records import ModelRecord
-    from plan_types.plan.plan import MultiStep, Plan
-    from plan_types.plan.step import Step
 
     cited = [ModelRecord(name=c.__name__, docstring="", fields=(), bases=(), file="x.py", line=1,
-                         ontology_iri=getattr(c, "ONTOLOGY_IRI", ""))
-             for c in (Plan, Step, MultiStep)]
+                         ontology_iri=c.ONTOLOGY_IRI)
+             for c in declared()]
     assert [c.ontology_iri for c in cited if c.ontology_iri], "nothing cites — guard checks nothing"
     assert validate(cited, PROV) == []
 

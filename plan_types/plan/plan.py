@@ -41,6 +41,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, ClassVar, Sequence
 
+from plan_types.naming.declared_term import DeclaredTerm
 from plan_types.plan.step import Step, wired_inputs, wired_outputs
 from plan_types.plan.service import Service
 from plan_types.plan.variable import Variable
@@ -57,7 +58,7 @@ class PlanError(ValueError):
 
 
 @dataclass(frozen=True)
-class Plan:
+class Plan(DeclaredTerm):
     """A set of Steps and the typed Variables that connect them.
 
     `steps` is a tuple for reproducible reporting, NOT because order carries meaning. Any execution
@@ -83,8 +84,20 @@ class Plan:
     #: a violation, so one word cannot come to mean three things.
     services: tuple[Service, ...] = ()
 
+    ID: ClassVar[str] = "plan"
+    DEFINITION: ClassVar[str] = (
+        "A declared composition of Steps: what should happen, not what did."
+    )
+    RATIONALE: ClassVar[str] = (
+        "Without a name for the declaration, the only thing left to point at is a particular run — "
+        "so 'the pipeline is wrong' and 'that execution failed' collapse into one sentence with two "
+        "opposite fixes."
+    )
+
     #: p-plan:Plan — checked against the vendored ontology by the provenance invariants.
     ONTOLOGY_IRI: ClassVar[str] = "http://purl.org/net/p-plan#Plan"
+
+    ALSO_KNOWN_AS: ClassVar[tuple[str, ...]] = ("DataFlowGraph", "Workflow", "Pipeline")
 
     def __post_init__(self) -> None:
         if not self.steps:
@@ -210,6 +223,27 @@ class MultiStep(Plan, Step):
     #: it is plain nesting, and `topology.terminating_iteration` refuses a cyclic inner Plan without
     #: one, because a non-terminating declaration is not a specification.
     until: Variable[Any] | None = None
+
+    ID: ClassVar[str] = "multi_step"
+    DEFINITION: ClassVar[str] = (
+        "A Plan that appears as one Step in an outer Plan — how a Plan nests."
+    )
+    RATIONALE: ClassVar[str] = (
+        "Without it, a Plan large enough to need sections has to be flattened, and the section "
+        "boundary — the thing a reader navigates by — exists only in a comment."
+    )
+
+    #: ⚠️ `Step` and not `Plan`, though it is `rdfs:subClassOf` both and both are Python bases.
+    #:
+    #: REFINES is the escape hatch for the NAMING laws, so it points at the term whose WORD this
+    #: name reuses — and `MultiStep` reuses `Step`. Pointed at `Plan` it is a true statement that
+    #: silences nothing: `canonical-reuse` still reports "MultiStep contains the canonical name
+    #: Step but declares no relationship to it", and a documented fix that does not silence the
+    #: finding is the fastest way to teach someone the tool is broken.
+    #:
+    #: The Plan relation is not lost — it is the Python base, which `naming.records` reads as an
+    #: explicit refinement in the only way Python has.
+    REFINES: ClassVar[type[DeclaredTerm] | None] = Step
 
     ONTOLOGY_IRI: ClassVar[str] = "http://purl.org/net/p-plan#MultiStep"
 

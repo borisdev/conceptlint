@@ -50,11 +50,14 @@ memory.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import ClassVar
+
+from plan_types.naming.declared_term import DeclaredTerm
 
 
 @dataclass(frozen=True)
-class Service:
+class Service(DeclaredTerm):
     """Something a Step needs reachable: an API, a database, a file on disk.
 
     Frozen and compared by identity-of-value like `Variable`, so two Steps referencing the same
@@ -74,7 +77,23 @@ class Service:
     #: currently lives in a docstring where nothing checks it.
     why: str = ""
 
-    ONTOLOGY_IRI: str = field(default="http://www.w3.org/ns/prov#SoftwareAgent", compare=False)
+    ID: ClassVar[str] = "service"
+    DEFINITION: ClassVar[str] = (
+        "Something a Step needs REACHABLE — an API, a database, a file on disk. Not a value, and "
+        "not an edge."
+    )
+    RATIONALE: ClassVar[str] = (
+        "One conversation used 'retriever' for three different things in an hour, because no "
+        "declared object owned the word. The dataflow vocabulary was declared and precise; the "
+        "infrastructure vocabulary was not declared at all, so it drifted freely."
+    )
+
+    #: ⚠️ Was a dataclass FIELD — `field(default=..., compare=False)` — until 2026-08-22. It was
+    #: the only one of the six declared as data, and `compare=False` was it already trying not to
+    #: be: a citation is a property of the class, not of an instance. As a ClassVar it is excluded
+    #: from `__eq__`/`__hash__` for the same reason and by construction rather than by a flag.
+    ONTOLOGY_IRI: ClassVar[str] = "http://www.w3.org/ns/prov#SoftwareAgent"
+    ALSO_KNOWN_AS: ClassVar[tuple[str, ...]] = ("Resource", "Dependency", "Backend")
 
     def __str__(self) -> str:  # pragma: no cover - display only
         return f"Service({self.name})"

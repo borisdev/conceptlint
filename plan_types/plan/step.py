@@ -62,6 +62,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar, Generic, TypeVar
 
+from plan_types.naming.declared_term import DeclaredTerm
 from plan_types.plan.service import Service
 from plan_types.plan.variable import Variable
 
@@ -69,7 +70,7 @@ InputT = TypeVar("InputT")
 OutputT = TypeVar("OutputT")
 
 
-class Step(Generic[InputT, OutputT]):
+class Step(DeclaredTerm, Generic[InputT, OutputT]):
     """Subclass it and declare `inputs` and `outputs`. That is the whole of it.
 
     Both are class-level because they are the DECLARATION: the shape of a pipeline must be readable
@@ -81,9 +82,28 @@ class Step(Generic[InputT, OutputT]):
     is not an unfinished Step, it is a Step nobody has bound yet, and the two must not look alike.
     """
 
+    #: ── the `DeclaredTerm` declaration ───────────────────────────────────────────────────────
+    #:
+    #: These six were a toy `class Step(Concept)` in `conceptlint/ontologies/pplan/` until
+    #: 2026-08-22, declared BESIDE this class rather than on it. So the linter checked a
+    #: description of Step while the real one drifted, and reported the two as a duplicate name —
+    #: which was the only true thing it could say about the arrangement.
+    ID: ClassVar[str] = "step"
+    DEFINITION: ClassVar[str] = (
+        "One declared unit inside a Plan: the inputs it consumes, the outputs it produces."
+    )
+    RATIONALE: ClassVar[str] = (
+        "The declaration and one run of it were both called 'step', so 'the step failed' could mean "
+        "the definition is wrong or that one execution errored — opposite actions from one sentence."
+    )
+
     #: P-Plan grounding. Checked — see `ontologies/invariants.GroundedCitation`, which exists
     #: because this exact field was once a citation nobody had read.
     ONTOLOGY_IRI: ClassVar[str] = "http://purl.org/net/p-plan#Step"
+
+    #: ⚠️ `DataFlowNode` is listed so it stays dead. It is the synonym a coding agent reaches for
+    #: because it sounds more computer-sciencey than Step. `Task` and `Operator` are Airflow's.
+    ALSO_KNOWN_AS: ClassVar[tuple[str, ...]] = ("DataFlowNode", "Task", "Operator")
 
     #: p-plan:hasInputVar — 0..N. A Step with several inputs is the ordinary case, not a special one.
     inputs: ClassVar[tuple[Variable[Any], ...]] = ()

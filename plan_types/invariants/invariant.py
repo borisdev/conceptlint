@@ -1,11 +1,16 @@
 """`SemanticInvariant` — a rule that can fail, and say why.
 
-    Concept  ->  replaced by  ->  SemanticInvariant
+    DeclaredTerm  ->  generalized by  ->  SemanticInvariant
 
-`Concept` was a *type* you inherited from to declare a term. It required annotating a codebase
-before anything could be checked, which is a tax nobody pays. The more general abstraction is not a
-type at all: **an invariant is a rule/check**, and a concept-style name collision is one thing a
-rule can check.
+`DeclaredTerm` is a *type* you inherit from to declare a term. Requiring it of a whole codebase
+before anything can be checked is a tax nobody pays, so it is not required of one: the more general
+abstraction is not a type at all — **an invariant is a rule/check**, and a name collision between
+two declared terms is one thing a rule can check.
+
+⚠️ It was described here as *retired and replaced* until 2026-08-22, and that was never quite true
+— `conceptlint.core.lint` had four rules reading it the whole time. It is now the shared base of
+`Plan`, `PlanStep`, `Variable` and `Service`, which is the case where the tax is zero because
+nobody outside this package writes those types. Optional for a user, load-bearing for us.
 
 ## Four categories, not one vague subsystem
 
