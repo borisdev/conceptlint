@@ -1,6 +1,6 @@
 """The layering claim, executed.
 
-`plan_types.plan` must import no execution framework, and the same Plan under the same Strategy must
+`workflow_plan.plan` must import no execution framework, and the same Plan under the same Strategy must
 produce the same answer on `LocalRunner` and on Pydantic Graph. Both are assertions this repo makes
 in prose; neither is worth anything unless something runs it.
 """
@@ -12,9 +12,9 @@ import pytest
 
 pytest.importorskip("pydantic_graph", reason="optional extra: uv sync --extra pydantic-graph")
 
-from plan_types.execution import (ExecutionError, LocalRunner, check_strategy,  # noqa: E402
+from workflow_plan.execution import (ExecutionError, LocalRunner, check_strategy,  # noqa: E402
                                   run)
-from plan_types.execution.pydantic_graph import to_pydantic_graph  # noqa: E402
+from workflow_plan.execution.pydantic_graph import to_pydantic_graph  # noqa: E402
 
 
 def test_both_runtimes_agree() -> None:
@@ -43,8 +43,8 @@ def test_an_incomplete_strategy_is_refused_before_the_graph_is_built() -> None:
 
 def test_a_cyclic_plan_is_refused_rather_than_linearised() -> None:
     """The case where you SHOULD use their engine, said out loud instead of faked."""
-    from plan_types import Plan, Step, Variable
-    from plan_types.plan.plan import PlanError
+    from workflow_plan import Plan, Step, Variable
+    from workflow_plan.plan.plan import PlanError
 
     a, b = Variable("a", int), Variable("b", int)
 
@@ -63,7 +63,7 @@ def test_the_plan_layer_imports_no_execution_framework() -> None:
     """The layering claim itself. `plan/` must be readable with no engine in the room."""
     import pathlib
 
-    plan_dir = pathlib.Path(__file__).resolve().parents[1] / "plan_types" / "plan"
+    plan_dir = pathlib.Path(__file__).resolve().parents[1] / "workflow_plan" / "plan"
     for path in plan_dir.glob("*.py"):
         source = path.read_text()
         for engine in ("pydantic_graph", "temporal", "langgraph"):
@@ -102,7 +102,7 @@ def test_the_diagrams_differ_only_in_the_implementation_labels() -> None:
     """The visual claim, checked: strip the <i> labels and the three renders are byte-identical."""
     import re
 
-    from plan_types import render_mermaid
+    from workflow_plan import render_mermaid
     from examples.pydantic_graph_docs.stage2_strategies import ARMS, plan
 
     strip = lambda t: re.sub(r"<br/><i>[^<]+</i>", "", t)  # noqa: E731
@@ -115,7 +115,7 @@ def test_stage3_and_the_control_arm_agree() -> None:
     """The comparison is only worth reading if both arms compute the same thing."""
     from examples.pydantic_graph_docs import control_no_plan as ctrl
     from examples.pydantic_graph_docs import stage3_map_join as s3
-    from plan_types.execution import LocalRunner, run
+    from workflow_plan.execution import LocalRunner, run
 
     for case in s3.CORPUS:
         with_plan = [run(s3.plan, {"numbers": case}, LocalRunner(a))["total"]
@@ -135,8 +135,8 @@ def test_a_mapped_step_gives_their_documented_answer() -> None:
     """Their docs print `Results: [1, 4, 9, 16, 25]`. Both our runtimes must too — and the
     compiled one gets there through their real `.map()` and join, not a loop wearing the name."""
     from examples.pydantic_graph_docs.stage3_map_join import ARMS, plan
-    from plan_types.execution import LocalRunner, run
-    from plan_types.execution.pydantic_graph import to_pydantic_graph
+    from workflow_plan.execution import LocalRunner, run
+    from workflow_plan.execution.pydantic_graph import to_pydantic_graph
 
     case = {"numbers": [1, 2, 3, 4, 5]}
     assert run(plan, case, LocalRunner(ARMS["exact"]))["squares"] == [1, 4, 9, 16, 25]
@@ -151,8 +151,8 @@ def test_a_mapped_step_is_an_ordinary_node_to_every_invariant() -> None:
     Variable must never surface as a Plan port, or every topology rule would need to learn about
     mapping and they would each learn it slightly differently.
     """
-    from plan_types import validate
-    from plan_types.invariants import topology, typing as typing_inv
+    from workflow_plan import validate
+    from workflow_plan.invariants import topology, typing as typing_inv
     from examples.pydantic_graph_docs.stage3_map_join import numbers, plan, squares
 
     assert validate(plan, [*topology.ALL, *typing_inv.ALL]) == []
@@ -163,7 +163,7 @@ def test_a_mapped_step_is_an_ordinary_node_to_every_invariant() -> None:
 
 def test_a_mapped_step_must_be_the_per_item_operation() -> None:
     """A mapped fan-in has no meaning: there is no second list to zip against."""
-    from plan_types import Step, Variable
+    from workflow_plan import Step, Variable
 
     xs, x, y, ys = (Variable("xs", list), Variable("x", int),
                     Variable("y", int), Variable("ys", list))

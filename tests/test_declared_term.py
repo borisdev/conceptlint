@@ -8,15 +8,15 @@ from __future__ import annotations
 
 import pathlib
 
-import plan_types.plan  # noqa: F401 — importing is what declares them
-from plan_types.naming.declared_term import DeclaredTerm, declared
-from plan_types.naming.records import MODEL_BASES, discover_models
-from plan_types.plan import MultiStep, Plan, Service, Step, Variable
+import workflow_plan.plan  # noqa: F401 — importing is what declares them
+from workflow_plan.naming.declared_term import DeclaredTerm, declared
+from workflow_plan.naming.records import MODEL_BASES, discover_models
+from workflow_plan.plan import MultiStep, Plan, Service, Step, Variable
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
-def test_the_five_plan_types_are_declared_terms():
+def test_the_five_core_types_are_declared_terms():
     """The point of the pass: one base, filled, instead of `ONTOLOGY_IRI` on each class ad hoc."""
     for cls in (Plan, Step, Variable, Service, MultiStep):
         assert issubclass(cls, DeclaredTerm), cls.__name__
@@ -28,13 +28,13 @@ def test_the_five_plan_types_are_declared_terms():
 def test_every_id_this_package_declares_is_unique():
     """`Ambiguity` reports this too. Asserted here so it fails at the commit, not at the lint.
 
-    ⚠️ Scoped to `plan_types`, not to `declared()`, and the reason is worth keeping. `declared()`
+    ⚠️ Scoped to `workflow_plan`, not to `declared()`, and the reason is worth keeping. `declared()`
     walks `__subclasses__()` of the LIVE process, so any throwaway subclass another test builds is
     in it permanently — `tests/test_core.py` makes a dozen and its helper docstring claims "the
     module registry stays untouched", which has never been true. A global assertion here would fail
     or pass on test ORDER, which is the flakiness `core.invariant.validate` was split out to stop.
     """
-    ours = [c for c in declared() if c.__module__.startswith("plan_types.")]
+    ours = [c for c in declared() if c.__module__.startswith("workflow_plan.")]
     ids = [c.ID for c in ours]
     assert ids, "nothing declared — this guard would be checking nothing"
     assert len(ids) == len(set(ids)), f"a wire tag is claimed twice: {sorted(ids)}"
@@ -60,7 +60,7 @@ def test_discovery_of_our_own_base_does_not_depend_on_file_order():
     """⚠️ The regression that dropped the repo's finding count from 6 to 4 and looked like a win.
 
     `discover_models` follows a base only once it has walked the file declaring it, in sorted
-    order. The base moved from `conceptlint/core/` to `plan_types/naming/`, `evals/` stopped
+    order. The base moved from `conceptlint/core/` to `workflow_plan/naming/`, `evals/` stopped
     sorting after it, and two real duplicates went unreported. Naming the base in `MODEL_BASES` is
     what makes it order-independent; this asserts the consequence rather than the mechanism.
     """

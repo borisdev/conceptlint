@@ -177,8 +177,8 @@ they stay that way until something needs to execute a Plan.
 
 Worth recording, because it is the one the tests could not catch.
 
-The refactor moved `conceptlint/dataflow/` to `plan_types/` and did not update the build config. A
-wheel built from HEAD contained neither module: `plan_types` was never listed in
+The refactor moved `conceptlint/dataflow/` to `workflow_plan/` and did not update the build config. A
+wheel built from HEAD contained neither module: `workflow_plan` was never listed in
 `[tool.hatch.build.targets.wheel]`, and `conceptlint.dataflow` had been deleted. **116 tests passed
 throughout**, because they import from the working tree and never from a built artifact.
 
@@ -191,8 +191,8 @@ editable puts the source tree on `sys.path`, so `packages = [...]` is never cons
 imports whatever the build config says. Proof, same commit, two install methods:
 
 ```
-git install of v0.3.1   →  plan_types: MISSING
-same tree, imported     →  plan_types: FOUND
+git install of v0.3.1   →  workflow_plan: MISSING
+same tree, imported     →  workflow_plan: FOUND
 ```
 
 Nor does *"always install from HEAD"* help — `uv add git+https://...` still builds the package

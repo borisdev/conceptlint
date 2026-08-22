@@ -56,7 +56,7 @@ jobs:
           OUT=$(uv run conceptlint . 2>&1); RC=$?
           # ⚠️ `set -e` stays OFF across the count. `grep -c` exits 1 when it counts ZERO, so with
           # `bash -e` this line killed the job before its first echo — the gate went red precisely
-          # when plan_types/ was clean, and had done since the baseline reached 0 on 2026-08-17.
+          # when workflow_plan/ was clean, and had done since the baseline reached 0 on 2026-08-17.
           # Three red runs on main, none of them about the code. Still not `|| true`: that is the
           # nobsmed failure the comment above names, where a usage message counted as 0 and passed.
           FOUND=$(printf '%s\n' "$OUT" | grep -cE '^(naming|typing|topology|provenance)\.[a-z_]+:')

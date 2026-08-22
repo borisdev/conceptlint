@@ -1,5 +1,5 @@
 """Vocabulary must be allowed to grow when the distinction is real."""
-from plan_types.naming.declared_term import DeclaredTerm
+from workflow_plan.naming.declared_term import DeclaredTerm
 
 
 class RetryPolicy(DeclaredTerm):

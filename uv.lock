@@ -70,7 +70,7 @@ wheels = [
 ]
 
 [[package]]
-name = "plan-types"
+name = "workflow-plan"
 version = "0.7.0"
 source = { editable = "." }
 dependencies = [

@@ -22,10 +22,10 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
-from plan_types import Plan, Step, Variable, render_mermaid, validate
-from plan_types.execution import LocalRunner, check_strategy, run
-from plan_types.execution.pydantic_graph import to_pydantic_graph
-from plan_types.invariants import topology, typing
+from workflow_plan import Plan, Step, Variable, render_mermaid, validate
+from workflow_plan.execution import LocalRunner, check_strategy, run
+from workflow_plan.execution.pydantic_graph import to_pydantic_graph
+from workflow_plan.invariants import topology, typing
 
 
 @dataclass(frozen=True)

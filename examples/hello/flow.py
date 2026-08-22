@@ -16,9 +16,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from plan_types import Plan, Step, Variable, render_mermaid, validate
-from plan_types.execution import LocalRunner, check_strategy, run
-from plan_types.invariants import topology, typing
+from workflow_plan import Plan, Step, Variable, render_mermaid, validate
+from workflow_plan.execution import LocalRunner, check_strategy, run
+from workflow_plan.invariants import topology, typing
 
 
 # ── what flows ───────────────────────────────────────────────────────────────────────────────────

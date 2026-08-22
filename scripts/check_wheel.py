@@ -2,7 +2,7 @@
 
 The only check in this repo that touches the artifact. Every other one imports the working tree,
 where `[tool.hatch.build.targets.wheel] packages` is never consulted — which is exactly how the
-tree between v0.3.1 and v0.4.0 produced a wheel containing neither `plan_types` (never listed) nor
+tree between v0.3.1 and v0.4.0 produced a wheel containing neither `workflow_plan` (never listed) nor
 `conceptlint.dataflow` (deleted), while 116 tests passed throughout.
 
 ⚠️ An editable install cannot catch this by construction: it puts the source tree on `sys.path`, so
@@ -15,10 +15,10 @@ import sys
 
 #: Every module a consumer is entitled to import. Add to this when a package starts shipping one.
 REQUIRED = [
-    "plan_types",
-    "plan_types.invariants",
-    "plan_types.plan",
-    "plan_types.execution",
+    "workflow_plan",
+    "workflow_plan.invariants",
+    "workflow_plan.plan",
+    "workflow_plan.execution",
     "conceptlint.core.lint",
 ]
 
@@ -29,7 +29,7 @@ REQUIRED_NAMES = ["Plan", "Step", "Variable", "check_arms", "PlanError", "valida
 
 def main() -> int:
     cwd = pathlib.Path.cwd().resolve()
-    if (cwd / "plan_types").is_dir():
+    if (cwd / "workflow_plan").is_dir():
         print(f"REFUSING to run inside the source tree ({cwd}) — the tree would satisfy every "
               f"import and this check would pass on a broken wheel.", file=sys.stderr)
         return 2
@@ -42,10 +42,10 @@ def main() -> int:
             problems.append(f"{name}: {type(exc).__name__}: {exc}")
 
     if not problems:
-        import plan_types
-        missing = [n for n in REQUIRED_NAMES if not hasattr(plan_types, n)]
+        import workflow_plan
+        missing = [n for n in REQUIRED_NAMES if not hasattr(workflow_plan, n)]
         if missing:
-            problems.append("plan_types is missing top-level names: " + ", ".join(missing))
+            problems.append("workflow_plan is missing top-level names: " + ", ".join(missing))
 
     if problems:
         print("NOT IN THE WHEEL:", file=sys.stderr)

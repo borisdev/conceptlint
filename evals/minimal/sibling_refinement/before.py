@@ -1,5 +1,5 @@
 """Two names circling one meaning, with no declared relationship."""
-from plan_types.naming.declared_term import DeclaredTerm
+from workflow_plan.naming.declared_term import DeclaredTerm
 
 
 class EvidenceFinding(DeclaredTerm):

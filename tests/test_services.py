@@ -5,8 +5,8 @@ and that single mandatory rule is what stops one name meaning three things.
 """
 from __future__ import annotations
 
-from plan_types import Plan, Service, Step, Variable, validate
-from plan_types.invariants import topology, typing as typing_inv
+from workflow_plan import Plan, Service, Step, Variable, validate
+from workflow_plan.invariants import topology, typing as typing_inv
 
 A = Variable("a", str)
 B = Variable("b", str)
@@ -64,7 +64,7 @@ def test_a_service_carries_runtime_state_nowhere():
     If a `status` or `last_called` field ever lands on Service, `typing.plan_time_only` should be
     what catches it, because that is the boundary this whole package exists to keep.
     """
-    from plan_types.invariants.typing.plan_time_only import RUNTIME_FIELDS
+    from workflow_plan.invariants.typing.plan_time_only import RUNTIME_FIELDS
 
     fields = set(Service.__dataclass_fields__)
     assert not (fields & RUNTIME_FIELDS), f"Service grew runtime state: {fields & RUNTIME_FIELDS}"
@@ -77,7 +77,7 @@ def test_the_grounding_is_honest_about_what_it_does_not_claim():
     execution that already happened — so citing it for `Step.uses` would mean something it does not
     say. That is the failure `provenance.grounded_citation` exists for.
     """
-    from plan_types.invariants.provenance.grounded_citation import ONTOLOGIES, terms_in
+    from workflow_plan.invariants.provenance.grounded_citation import ONTOLOGIES, terms_in
 
     assert Service.ONTOLOGY_IRI.startswith("http://www.w3.org/ns/prov#")
     assert "SoftwareAgent" in terms_in(ONTOLOGIES["http://www.w3.org/ns/prov#"])

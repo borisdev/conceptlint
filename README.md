@@ -3,13 +3,13 @@
 A typed, declarative representation of a workflow's logical plan, separate from the code that
 executes it.
 
-The Python package is `plan_types`.
+The Python package is `workflow_plan`.
 
 **If you also use Pydantic Graph, both libraries export `Step`, and they mean different things.**
 `pydantic_graph.Step` is an executable node — the decorated function is the implementation.
-`plan_types.Step` is a declaration: `p-plan:Step`, an intended operation, as distinct from
-`prov:Activity`, one execution of it. Import as `from plan_types import Step as PlanStep` when both
-are in scope. (`Edge` collides too, but `plan_types`' is internal and not exported.)
+`workflow_plan.Step` is a declaration: `p-plan:Step`, an intended operation, as distinct from
+`prov:Activity`, one execution of it. Import as `from workflow_plan import Step as PlanStep` when both
+are in scope. (`Edge` collides too, but `workflow_plan`' is internal and not exported.)
 
 LangGraph, Temporal and [Pydantic Graph](https://pydantic.dev/docs/ai/graph/builder/) execute
 workflows. This library sits above them: it describes what a workflow *is* — steps, typed data
@@ -47,8 +47,8 @@ uv run pytest -q
 A Step declares its inputs and outputs. It contains no implementation.
 
 ```python
-from plan_types import Plan, Step, Variable, render_mermaid, validate
-from plan_types.invariants import topology, typing
+from workflow_plan import Plan, Step, Variable, render_mermaid, validate
+from workflow_plan.invariants import topology, typing
 
 document = Variable("document", Document)
 outline  = Variable("outline", Outline)
@@ -97,7 +97,7 @@ Implementations are ordinary functions, associated with Steps by a `Strategy` �
 Parameter names must match the input Variable names, because the runner calls by keyword.
 
 ```python
-from plan_types.execution import LocalRunner, check_strategy, run
+from workflow_plan.execution import LocalRunner, check_strategy, run
 
 def summarize_fast(document: Document, outline: Outline) -> Summary: ...
 def summarize_precise(document: Document, outline: Outline) -> Summary: ...
@@ -123,7 +123,7 @@ propagates.
 `to_pydantic_graph(plan, strategy)` compiles the same plan and strategy onto Pydantic Graph:
 
 ```python
-from plan_types.execution.pydantic_graph import to_pydantic_graph
+from workflow_plan.execution.pydantic_graph import to_pydantic_graph
 
 graph = to_pydantic_graph(plan, strategy)          # a pydantic_graph.Graph
 result = await graph.run(state={}, inputs={"document": doc})
@@ -276,7 +276,7 @@ checked vocabulary, not a serialization format.
 them distinct even where a runtime maps them one to one. Temporal's `Activity` is `prov:Activity`,
 not a `Step`.
 
-`plan_types.ontology` holds the PROV-O side as Pydantic models — `Entity`, `Activity`, `Agent`, and
+`workflow_plan.ontology` holds the PROV-O side as Pydantic models — `Entity`, `Activity`, `Agent`, and
 `Run` (`prov:Bundle`, one execution of a Plan, with validated referential integrity between its
 edges). **None of it is populated by `run()`, which returns a plain dict.** Producing a provenance
 document from an execution is a feature these types were written for and it is not built.

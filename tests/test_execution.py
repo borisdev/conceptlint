@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from plan_types import Plan, Step, Variable
-from plan_types.execution import (ExecutionError, LocalRunner, StepRunner, check_strategy,
+from workflow_plan import Plan, Step, Variable
+from workflow_plan.execution import (ExecutionError, LocalRunner, StepRunner, check_strategy,
                                   run)
 
 document = Variable("document", str)
@@ -94,7 +94,7 @@ def test_execute_returns_intermediates_too() -> None:
 
 
 def test_local_runner_satisfies_the_protocol_structurally() -> None:
-    """No inheritance. An adapter in another package conforms without importing plan_types."""
+    """No inheritance. An adapter in another package conforms without importing workflow_plan."""
     assert isinstance(LocalRunner({}), StepRunner)
 
 

@@ -26,8 +26,8 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
-from plan_types.naming.declared_term import DeclaredTerm
-from plan_types.plan.plan import Plan
+from workflow_plan.naming.declared_term import DeclaredTerm
+from workflow_plan.plan.plan import Plan
 
 
 class TrialError(Exception):

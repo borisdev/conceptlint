@@ -1,5 +1,5 @@
 """The distinction made explicit: both narrow one canonical Finding."""
-from plan_types.naming.declared_term import DeclaredTerm
+from workflow_plan.naming.declared_term import DeclaredTerm
 
 
 class Finding(DeclaredTerm):

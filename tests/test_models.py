@@ -10,7 +10,7 @@ import textwrap
 
 import pytest
 
-from plan_types.naming.records import discover_models, near_duplicates
+from workflow_plan.naming.records import discover_models, near_duplicates
 
 
 def _write(tmp: pathlib.Path, body: str) -> pathlib.Path:
@@ -224,7 +224,7 @@ def _two_files(tmp: pathlib.Path, a: str, b: str) -> pathlib.Path:
 
 
 def test_one_name_two_shapes_is_overloaded(tmp_path: pathlib.Path) -> None:
-    from plan_types.naming.records import overloaded
+    from workflow_plan.naming.records import overloaded
     root = _two_files(tmp_path, '''
         from pydantic import BaseModel
 
@@ -245,7 +245,7 @@ def test_one_name_two_shapes_is_overloaded(tmp_path: pathlib.Path) -> None:
 
 def test_one_name_one_shape_is_a_duplicate_not_an_overload(tmp_path: pathlib.Path) -> None:
     """Reporting both would make one mistake produce two findings."""
-    from plan_types.naming.records import overloaded
+    from workflow_plan.naming.records import overloaded
     body = '''
         from pydantic import BaseModel
 
@@ -264,7 +264,7 @@ def test_a_versioned_namespace_is_not_an_overload(tmp_path: pathlib.Path) -> Non
     namespace already says which is which. Flagging them means flagging versioning itself, and a
     checker that fires on an intentional pattern does not survive first contact.
     """
-    from plan_types.naming.records import overloaded
+    from workflow_plan.naming.records import overloaded
     for v in ("v3_0", "v4_0"):
         d = tmp_path / "versions" / v
         d.mkdir(parents=True)
@@ -416,7 +416,7 @@ def test_a_term_claimed_by_two_declarations_is_overloaded(tmp_path: pathlib.Path
     The first version of this counted distinct NAMES, so two classes both called `Finding` deduped
     to one and it reported nothing — on a codebase where the code-level check finds fifteen.
     """
-    from plan_types.naming.records import overloaded_terms
+    from workflow_plan.naming.records import overloaded_terms
     (tmp_path / "a.py").write_text(textwrap.dedent('''
         from pydantic import BaseModel
         class Finding(BaseModel):
@@ -438,7 +438,7 @@ def test_versioned_copies_are_not_an_overloaded_term(tmp_path: pathlib.Path) -> 
     The PASS twin. Before this filter, `protocol` on nobsmed looked five-ways ambiguous and three
     of the five were versions of each other — a question with a boring answer, asked constantly.
     """
-    from plan_types.naming.records import overloaded_terms
+    from workflow_plan.naming.records import overloaded_terms
     for v in ("v3_0", "v4_0"):
         d = tmp_path / "versions" / v
         d.mkdir(parents=True)
@@ -458,7 +458,7 @@ def test_a_retired_word_is_reported_even_though_it_is_unambiguous(tmp_path: path
     ambiguity — nothing competes for it — so a check that only reported multi-claimant terms would
     stay silent on the exact failure it was built for.
     """
-    from plan_types.naming.records import claimed_by
+    from workflow_plan.naming.records import claimed_by
     (tmp_path / "m.py").write_text(textwrap.dedent('''
         from pydantic import BaseModel
         class Plan(BaseModel):

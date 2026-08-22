@@ -13,7 +13,7 @@ being written. One declaration, two demos — which is also the thing the packag
 """
 from __future__ import annotations
 
-from plan_types import Plan, Step, Variable
+from workflow_plan import Plan, Step, Variable
 
 numbers = Variable("numbers", list)
 number = Variable("number", int)

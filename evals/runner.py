@@ -23,13 +23,13 @@ import pathlib
 import sys
 from dataclasses import dataclass, field
 
-from plan_types.naming.declared_term import DeclaredTerm
+from workflow_plan.naming.declared_term import DeclaredTerm
 from conceptlint.core.invariant import ConceptIssue
 from conceptlint.core.lint import lint
-from plan_types.invariants import validate
-from plan_types.invariants.typing.plan_time_only import PLAN_TIME_ONLY
-from plan_types.naming.records import discover_models
-from plan_types.plan import MultiStep, Plan, Service, Step, Variable
+from workflow_plan.invariants import validate
+from workflow_plan.invariants.typing.plan_time_only import PLAN_TIME_ONLY
+from workflow_plan.naming.records import discover_models
+from workflow_plan.plan import MultiStep, Plan, Service, Step, Variable
 
 MINIMAL = pathlib.Path(__file__).resolve().parent / "minimal"
 
@@ -51,7 +51,7 @@ SEED = [Plan, Step, Variable, Service, MultiStep]
 #: package exists to prevent.
 IMPLEMENTED_BY: dict[str, str | None] = {
     "near-duplicate": "near-duplicate",           # conceptlint.core.lint.NearDuplicate
-    "plan-time-only": "typing.plan_time_only",    # plan_types.invariants.typing
+    "plan-time-only": "typing.plan_time_only",    # workflow_plan.invariants.typing
     "no-private-synonym": None,                   # removed in e6aa37c, never rebuilt
     "no-execution-fields": None,                  # removed in e6aa37c, never rebuilt
 }

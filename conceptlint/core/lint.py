@@ -22,7 +22,7 @@ import re
 import sys
 from typing import Iterable, Sequence
 
-from plan_types.naming.declared_term import DeclaredTerm, declared
+from workflow_plan.naming.declared_term import DeclaredTerm, declared
 from conceptlint.core.invariant import ConceptIssue, Invariant, registered
 _WORD = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
 
@@ -243,12 +243,12 @@ def main(argv: list[str] | None = None) -> int:
     # Ordinary Pydantic models — no base class required. This is the DEFAULT surface: every repo
     # has models long before it has declared Concepts, and requiring declarations first is the
     # "annotate your whole codebase" tax nobody pays.
-    from plan_types.invariants.naming.ambiguous_reference import AMBIGUOUS_REFERENCE
-    from plan_types.invariants.naming.naming_drift import NAMING_DRIFT
-    from plan_types.naming.records import discover_models, near_duplicates, overloaded
+    from workflow_plan.invariants.naming.ambiguous_reference import AMBIGUOUS_REFERENCE
+    from workflow_plan.invariants.naming.naming_drift import NAMING_DRIFT
+    from workflow_plan.naming.records import discover_models, near_duplicates, overloaded
 
     # ⚠️ The finding NAMES come from the SemanticInvariant ids, never hand-written here. This CLI
-    # and `plan_types.invariants` are two surfaces on ONE engine, and until 2026-08-17 they called
+    # and `workflow_plan.invariants` are two surfaces on ONE engine, and until 2026-08-17 they called
     # the same two findings different things — `overloaded` vs `naming.ambiguous_reference`. A tool
     # whose pitch is "one concept, one name" shipping its own findings under two names.
     #

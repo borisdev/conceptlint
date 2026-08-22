@@ -28,10 +28,10 @@ from __future__ import annotations
 
 import asyncio
 
-from plan_types import Plan, Step, Variable, render_mermaid, validate
-from plan_types.execution import LocalRunner, check_strategy, run
-from plan_types.execution.pydantic_graph import to_pydantic_graph
-from plan_types.invariants import topology, typing
+from workflow_plan import Plan, Step, Variable, render_mermaid, validate
+from workflow_plan.execution import LocalRunner, check_strategy, run
+from workflow_plan.execution.pydantic_graph import to_pydantic_graph
+from workflow_plan.invariants import topology, typing
 
 from examples.pydantic_graph_docs.their_example import (ARMS, CORPUS, Square, Total,
                                                         numbers, plan, squares)

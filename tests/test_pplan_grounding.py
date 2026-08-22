@@ -39,7 +39,7 @@ import re
 import pytest
 
 TTL = pathlib.Path(__file__).resolve().parents[1] / \
-    "plan_types" / "ontology" / "vendored" / "p-plan.ttl"
+    "workflow_plan" / "ontology" / "vendored" / "p-plan.ttl"
 
 PPLAN = "http://purl.org/net/p-plan#"
 
@@ -131,8 +131,8 @@ def test_every_ontology_iri_we_cite_exists_in_the_vendored_ontology(pplan):
     never checked by it, and adding a seventh term would have gone unchecked too. A guard over a
     list somebody remembers to extend is a guard that goes quiet exactly when the vocabulary grows.
     """
-    import plan_types.plan  # noqa: F401 — the declarations must be imported to be declared
-    from plan_types.naming.declared_term import declared
+    import workflow_plan.plan  # noqa: F401 — the declarations must be imported to be declared
+    from workflow_plan.naming.declared_term import declared
 
     cited = {c.ONTOLOGY_IRI for c in declared() if c.ONTOLOGY_IRI}
 
@@ -146,7 +146,7 @@ def test_every_ontology_iri_we_cite_exists_in_the_vendored_ontology(pplan):
 
 def test_our_step_allows_many_inputs_like_the_ontology_does():
     """Was xfail until 2026-08-16. The marker was strict, so landing the fix forced its deletion."""
-    from plan_types.plan import Step, Variable
+    from workflow_plan.plan import Step, Variable
 
     class ThreeIn(Step):
         inputs = (Variable("a", str), Variable("b", int), Variable("c", float))
@@ -156,7 +156,7 @@ def test_our_step_allows_many_inputs_like_the_ontology_does():
 
 
 def test_our_step_allows_many_outputs_like_the_ontology_does():
-    from plan_types.plan import Step, Variable
+    from workflow_plan.plan import Step, Variable
 
     class TwoOut(Step):
         inputs = (Variable("a", str),)
@@ -172,7 +172,7 @@ def test_our_plan_does_not_assume_a_linear_chain():
     because the new module docstring *describes* the old behaviour it replaced. A test that reads
     prose cannot tell an implementation from an explanation of why it is gone.
     """
-    from plan_types.plan import Plan, Step, Variable, execution_order
+    from workflow_plan.plan import Plan, Step, Variable, execution_order
 
     A, B, C, D = (Variable("a", str), Variable("b", int),
                   Variable("c", float), Variable("d", dict))
@@ -195,7 +195,7 @@ def test_our_plan_does_not_assume_a_linear_chain():
 
 def test_we_model_multistep():
     """p-plan:MultiStep — rdfs:subClassOf both Plan and Step. Nesting is modelled, not faked."""
-    from plan_types.plan import MultiStep, Plan, Step
+    from workflow_plan.plan import MultiStep, Plan, Step
 
     assert issubclass(MultiStep, Plan)
     assert hasattr(MultiStep, "decomposed_as_plan"), "p-plan:isDecomposedAsPlan"
@@ -205,9 +205,9 @@ def test_we_model_multistep():
 
 
 def test_grounded_citation_reports_a_term_that_does_not_exist():
-    from plan_types.invariants import validate
-    from plan_types.invariants.provenance import ALL as PROV
-    from plan_types.naming.records import ModelRecord
+    from workflow_plan.invariants import validate
+    from workflow_plan.invariants.provenance import ALL as PROV
+    from workflow_plan.naming.records import ModelRecord
 
     fake = ModelRecord(name="Fabricated", docstring="", fields=(), bases=(), file="f.py", line=1,
                        ontology_iri="http://purl.org/net/p-plan#Workflow")
@@ -217,9 +217,9 @@ def test_grounded_citation_reports_a_term_that_does_not_exist():
 
 def test_an_unvendored_ontology_is_reported_not_silently_passed():
     """"We cannot check this" and "this is fine" must never render the same."""
-    from plan_types.invariants import validate
-    from plan_types.invariants.provenance import ALL as PROV
-    from plan_types.naming.records import ModelRecord
+    from workflow_plan.invariants import validate
+    from workflow_plan.invariants.provenance import ALL as PROV
+    from workflow_plan.naming.records import ModelRecord
 
     elsewhere = ModelRecord(name="Elsewhere", docstring="", fields=(), bases=(), file="f.py",
                             line=1, ontology_iri="http://schema.org/Thing")
@@ -229,11 +229,11 @@ def test_an_unvendored_ontology_is_reported_not_silently_passed():
 
 def test_this_packages_own_citations_resolve():
     """The shipped vocabulary, checked against the shipped ontologies."""
-    from plan_types.invariants import validate
-    from plan_types.invariants.provenance import ALL as PROV
-    import plan_types.plan  # noqa: F401 — the declarations must be imported to be declared
-    from plan_types.naming.declared_term import declared
-    from plan_types.naming.records import ModelRecord
+    from workflow_plan.invariants import validate
+    from workflow_plan.invariants.provenance import ALL as PROV
+    import workflow_plan.plan  # noqa: F401 — the declarations must be imported to be declared
+    from workflow_plan.naming.declared_term import declared
+    from workflow_plan.naming.records import ModelRecord
 
     cited = [ModelRecord(name=c.__name__, docstring="", fields=(), bases=(), file="x.py", line=1,
                          ontology_iri=c.ONTOLOGY_IRI)
@@ -244,7 +244,7 @@ def test_this_packages_own_citations_resolve():
 
 def test_both_vendored_ontologies_parse_to_real_terms():
     """An HTML error page saved as .ttl parses to zero terms and passes everything vacuously."""
-    from plan_types.invariants.provenance import ONTOLOGIES, terms_in
+    from workflow_plan.invariants.provenance import ONTOLOGIES, terms_in
 
     for prefix, rel in ONTOLOGIES.items():
         assert len(terms_in(rel)) > 10, f"{prefix} -> {rel} yielded too few terms; is it RDF?"

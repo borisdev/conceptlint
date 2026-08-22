@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import ClassVar, Iterable, Sequence
 
-from plan_types.naming.declared_term import DeclaredTerm
+from workflow_plan.naming.declared_term import DeclaredTerm
 
 
 class ConceptIssue:

@@ -1,6 +1,6 @@
 # Findings across the WHOLE REPO. CI fails only if this rises.
 #
-# ⚠️ WAS `plan_types/` ONLY, AND THAT IS HOW A DUPLICATE SHIPPED (2026-08-20).
+# ⚠️ WAS `workflow_plan/` ONLY, AND THAT IS HOW A DUPLICATE SHIPPED (2026-08-20).
 # `Square` was declared twice with different shapes, in examples/pydantic_graph_docs/ — outside the
 # gate — and sat there unreported until someone asked whether the linter was earning its place. The
 # narrowing was deliberate, to dodge the intentional before/after pairs in evals/minimal/, and it
@@ -20,7 +20,7 @@
 #
 # ⚠️ Lowering this number is only honest when a finding stopped EXISTING, not when it stopped being
 # FOUND. In the same change the count briefly read 4, because moving the base to
-# `plan_types/naming/` put it after `evals/` in sorted order and `discover_models` silently stopped
+# `workflow_plan/naming/` put it after `evals/` in sorted order and `discover_models` silently stopped
 # resolving the two pairs below (issue #5). A count that falls looks like progress in both cases.
 # Read the findings, not the number.
 #

@@ -10,7 +10,7 @@ from typing import ClassVar
 
 import pytest
 
-from plan_types.naming.declared_term import DeclaredTerm
+from workflow_plan.naming.declared_term import DeclaredTerm
 from conceptlint.core.invariant import ConceptIssue, Invariant, registered, validate
 from conceptlint.core.lint import (Ambiguity, CanonicalReuse, ExplicitRefinement, NearDuplicate,
                                    words)
