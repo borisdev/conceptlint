@@ -9,7 +9,7 @@ two declared terms is one thing a rule can check.
 
 ⚠️ It was described here as *retired and replaced* until 2026-08-22, and that was never quite true
 — `conceptlint.core.lint` had four rules reading it the whole time. It is now the shared base of
-`Plan`, `PlanStep`, `Variable` and `Service`, which is the case where the tax is zero because
+`Plan`, `PlanStep`, `Variable` and `PlanDependency`, which is the case where the tax is zero because
 nobody outside this package writes those types. Optional for a user, load-bearing for us.
 
 ## Four categories, not one vague subsystem
@@ -28,7 +28,7 @@ New categories should emerge from a real failure, not from symmetry.
     statement   what must be true, in one sentence — the thing a human agrees or disagrees with
     check       executable. A rule with no check is a preference; say so in prose instead.
 
-⚠️ `check` RAISES rather than returning a bool. A boolean loses the detail — which Step, which
+⚠️ `check` RAISES rather than returning a bool. A boolean loses the detail — which PlanStep, which
 Variable, which two names — and that detail is the entire value of the violation. `Violation` carries
 the invariant's id so the message and the identity never drift apart.
 """

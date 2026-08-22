@@ -5,7 +5,7 @@
        └────────────────────────────────┘
 
 `Summarize` fans in: it needs the outline AND the original document. That is the ordinary case, not
-an advanced one, and it is what a Step modelled as a function of its predecessor's output cannot
+an advanced one, and it is what a PlanStep modelled as a function of its predecessor's output cannot
 express.
 
 Run it:
@@ -16,8 +16,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from workflow_plan import Plan, Step, Variable, render_mermaid, validate
-from workflow_plan.execution import LocalRunner, check_strategy, run
+from workflow_plan import Plan, PlanStep, Variable, render_mermaid, validate
+from workflow_plan.execution import SequentialRunner, check_strategy, run
 from workflow_plan.invariants import topology, typing
 
 
@@ -49,13 +49,13 @@ outline = Variable("outline", Outline)
 summary = Variable("summary", Summary)
 
 
-class MakeOutline(Step):
+class MakeOutline(PlanStep):
     """Pull the points out of a document."""
 
     inputs, outputs = (document,), (outline,)
 
 
-class Summarize(Step):
+class Summarize(PlanStep):
     """Write the summary. Needs the outline and the document it came from."""
 
     inputs, outputs = (document, outline), (summary,)
@@ -71,7 +71,7 @@ plan = Plan(
 # ── how it is performed — several ways, none of them privileged ──────────────────────────────────
 #
 # Ordinary functions. Parameter names match the Variable names because the runner calls by keyword:
-# a Step with two inputs called positionally is one reorder away from a mis-wire that the types
+# a PlanStep with two inputs called positionally is one reorder away from a mis-wire that the types
 # cannot catch when both inputs are strings.
 
 def outline_by_sentence(document: Document) -> Outline:
@@ -89,7 +89,7 @@ def summarize_precise(document: Document, outline: Outline) -> Summary:
     return Summary(text=f"{document.title}: " + "; ".join(outline.points) + ".")
 
 
-#: Two arms. Note what is NOT here: a second Plan, and a `SummarizeV2` Step. There is one operation
+#: Two arms. Note what is NOT here: a second Plan, and a `SummarizeV2` PlanStep. There is one operation
 #: called `Summarize` and two ways of doing it, which is what the words already meant.
 fast = {MakeOutline: outline_by_sentence, Summarize: summarize_fast}
 precise = {MakeOutline: outline_by_sentence, Summarize: summarize_precise}
@@ -106,7 +106,7 @@ def main() -> None:
         problems = check_strategy(plan, strategy)
         if problems:
             raise SystemExit("\n".join(problems))
-        result = run(plan, {"document": doc}, LocalRunner(strategy))
+        result = run(plan, {"document": doc}, SequentialRunner(strategy))
         print(f"{arm:>8}: {result['summary'].text}")
 
 

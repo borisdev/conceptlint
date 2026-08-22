@@ -32,6 +32,26 @@ def words(name: str) -> set[str]:
     return {w.lower() for w in _WORD.findall(name.replace("_", " ")) if len(w) > 2}
 
 
+def head(name: str) -> str:
+    """The HEAD NOUN — the last word. `ClinicalFinding` -> "finding", `PlanStep` -> "step".
+
+    ⚠️ This is the distinction both rules below claimed to make and neither made, found 2026-08-22
+    when they were first pointed at this package's own vocabulary instead of at five toy
+    declarations. English compounds are head-final: the qualifier narrows, the head says WHAT IT IS.
+
+        ResearchFinding   head `finding`   IS a Finding   -> a duplicate risk, and the rule's own example
+        PlanStep          head `step`      IS a Step      -> not a Plan, whatever the substring says
+
+    `CanonicalReuse` tested raw substring containment and `NearDuplicate` tested ANY shared word, so
+    both reported `PlanStep` as circling `Plan`. The fix a reader is offered — declare
+    `REFINES = Plan` — would have been false, and a rule whose documented fix is a lie is worse than
+    no rule. `NearDuplicate.WHY` has said "share their head noun" the whole time; this is the
+    implementation catching up with it.
+    """
+    found = _WORD.findall(name.replace("_", " "))
+    return found[-1].lower() if found else name.lower()
+
+
 def _ancestry(c: type[DeclaredTerm]) -> list[type[DeclaredTerm]]:
     out, seen, cur = [], set(), c.REFINES
     while cur is not None and cur not in seen:
@@ -103,8 +123,10 @@ class CanonicalReuse(Invariant):
             for other in concepts:
                 if c is other or _related(c, other):
                     continue
-                # `other`'s whole name inside `c`'s name: ResearchFinding contains Finding.
-                if other.__name__ != c.__name__ and other.__name__ in c.__name__:
+                # `other` IS `c`'s head noun: ResearchFinding is a Finding. Not raw containment —
+                # `PlanStep` contains `Plan` and is a Step, so the reuse is of the QUALIFIER slot,
+                # which carries no claim about meaning. See `head()`.
+                if other.__name__ != c.__name__ and head(c.__name__) == other.__name__.lower():
                     yield ConceptIssue(
                         self.ID,
                         f"{c.__name__} contains the canonical name {other.__name__} "
@@ -139,11 +161,16 @@ class NearDuplicate(Invariant):
             for other in concepts:
                 if c is other or _related(c, other):
                     continue
-                if other.__name__ in c.__name__ or c.__name__ in other.__name__:
-                    continue  # containment is CanonicalReuse's finding, not a second report
-                shared = words(c.__name__) & words(other.__name__)
-                if not shared:
+                if head(c.__name__) == other.__name__.lower() or \
+                        head(other.__name__) == c.__name__.lower():
+                    continue  # head containment is CanonicalReuse's finding, not a second report
+                # ⚠️ Head nouns, not ANY shared word — which is what `WHY` above has always said.
+                # Sharing a QUALIFIER is not evidence of one meaning: `PlanStep` and
+                # `PlanDependency` share `plan` and are a step and a service, related only by both
+                # belonging to a Plan.
+                if head(c.__name__) != head(other.__name__):
                     continue
+                shared = words(c.__name__) & words(other.__name__) or {head(c.__name__)}
                 key = tuple(sorted((c.__name__, other.__name__)))
                 if key in seen:
                     continue

@@ -4,7 +4,7 @@
 
 `dataflow/step.py` carries `ONTOLOGY_IRI = "http://purl.org/net/p-plan#Step"` with the comment
 "P-Plan grounding, read by ConceptLint". That field is a claim about somebody else's ontology — and
-it was written without reading it. The result: `Step` was given ONE `consumes` and ONE `produces`,
+it was written without reading it. The result: `PlanStep` was given ONE `consumes` and ONE `produces`,
 and `Plan` was validated as a pairwise chain, neither of which P-Plan says.
 
 That is the same failure shape the product exists to catch: an assertion carrying a citation the
@@ -19,11 +19,11 @@ reads that source and fails.
 The vendored `p-plan.ttl` (see PROVENANCE.md — fixed snapshot, hashed) is parsed for the handful of
 axioms our design depends on, and each is asserted against what we actually implement:
 
-    hasInputVar  has no cardinality restriction   ->  a Step may consume MANY Variables
-    hasOutputVar has no cardinality restriction   ->  a Step may produce MANY Variables
+    hasInputVar  has no cardinality restriction   ->  a PlanStep may consume MANY Variables
+    hasOutputVar has no cardinality restriction   ->  a PlanStep may produce MANY Variables
     isOutputVarOf IS owl:FunctionalProperty       ->  a Variable has exactly ONE producer
     isInputVarOf is NOT functional                ->  a Variable may feed MANY Steps
-    MultiStep is both a Plan and a Step           ->  a Plan may appear as a Step
+    MultiStep is both a Plan and a PlanStep           ->  a Plan may appear as a PlanStep
 
 ## The four known divergences are xfail(strict=True), not deletions
 
@@ -86,7 +86,7 @@ def test_the_vendored_file_is_actually_p_plan(pplan):
 
 
 def test_hasinputvar_has_no_cardinality_restriction(pplan):
-    """The axiom our design got wrong. A Step may take MANY inputs."""
+    """The axiom our design got wrong. A PlanStep may take MANY inputs."""
     block = pplan["hasInputVar"]
     assert "FunctionalProperty" not in block
     assert "cardinality" not in block.lower()
@@ -108,8 +108,10 @@ def test_isinputvarof_is_not_functional_so_a_variable_may_feed_many_steps(pplan)
 
 
 def test_multistep_is_both_a_plan_and_a_step(pplan):
-    """A Plan may appear as a Step — the nested sub-DAG, named in the ontology."""
+    """A Plan may appear as a PlanStep — the nested sub-DAG, named in the ontology."""
     block = pplan["MultiStep"]
+    # ⚠️ P-Plan's term names, not ours. Our class is `PlanStep`; the ontology's is `Step`,
+    # and this file exists to assert against the SOURCE rather than against us.
     assert "Plan" in block and "Step" in block
 
 
@@ -126,8 +128,8 @@ def test_every_ontology_iri_we_cite_exists_in_the_vendored_ontology(pplan):
     """A citation to a term that is not in the source is the cheapest version of this bug.
 
     ⚠️ Reads the `DeclaredTerm` registry rather than a hand-listed tuple of classes. The hand-list
-    was `(Step, Variable, Plan)` plus a `dir()` sweep of the toy declarations in
-    `conceptlint/ontologies/pplan/` — so `MultiStep` and `Service`, which both carry an IRI, were
+    was `(PlanStep, Variable, Plan)` plus a `dir()` sweep of the toy declarations in
+    `conceptlint/ontologies/pplan/` — so `MultiStep` and `PlanDependency`, which both carry an IRI, were
     never checked by it, and adding a seventh term would have gone unchecked too. A guard over a
     list somebody remembers to extend is a guard that goes quiet exactly when the vocabulary grows.
     """
@@ -146,9 +148,9 @@ def test_every_ontology_iri_we_cite_exists_in_the_vendored_ontology(pplan):
 
 def test_our_step_allows_many_inputs_like_the_ontology_does():
     """Was xfail until 2026-08-16. The marker was strict, so landing the fix forced its deletion."""
-    from workflow_plan.plan import Step, Variable
+    from workflow_plan.plan import PlanStep, Variable
 
-    class ThreeIn(Step):
+    class ThreeIn(PlanStep):
         inputs = (Variable("a", str), Variable("b", int), Variable("c", float))
         outputs = (Variable("d", dict),)
 
@@ -156,9 +158,9 @@ def test_our_step_allows_many_inputs_like_the_ontology_does():
 
 
 def test_our_step_allows_many_outputs_like_the_ontology_does():
-    from workflow_plan.plan import Step, Variable
+    from workflow_plan.plan import PlanStep, Variable
 
-    class TwoOut(Step):
+    class TwoOut(PlanStep):
         inputs = (Variable("a", str),)
         outputs = (Variable("b", int), Variable("c", float))
 
@@ -172,15 +174,15 @@ def test_our_plan_does_not_assume_a_linear_chain():
     because the new module docstring *describes* the old behaviour it replaced. A test that reads
     prose cannot tell an implementation from an explanation of why it is gone.
     """
-    from workflow_plan.plan import Plan, Step, Variable, execution_order
+    from workflow_plan.plan import Plan, PlanStep, Variable, execution_order
 
     A, B, C, D = (Variable("a", str), Variable("b", int),
                   Variable("c", float), Variable("d", dict))
 
-    class First(Step):                    # needs TWO inputs, so first/last cannot describe the Plan
+    class First(PlanStep):                    # needs TWO inputs, so first/last cannot describe the Plan
         inputs, outputs = (A, B), (C,)
 
-    class Second(Step):
+    class Second(PlanStep):
         inputs, outputs = (C,), (D,)
 
     plan = Plan(name="fanin", steps=(First(), Second()))
@@ -194,8 +196,8 @@ def test_our_plan_does_not_assume_a_linear_chain():
 
 
 def test_we_model_multistep():
-    """p-plan:MultiStep — rdfs:subClassOf both Plan and Step. Nesting is modelled, not faked."""
-    from workflow_plan.plan import MultiStep, Plan, Step
+    """p-plan:MultiStep — rdfs:subClassOf both Plan and PlanStep. Nesting is modelled, not faked."""
+    from workflow_plan.plan import MultiStep, Plan, PlanStep
 
     assert issubclass(MultiStep, Plan)
     assert hasattr(MultiStep, "decomposed_as_plan"), "p-plan:isDecomposedAsPlan"

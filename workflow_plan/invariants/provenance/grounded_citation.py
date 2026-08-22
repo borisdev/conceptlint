@@ -1,6 +1,6 @@
 """`ONTOLOGY_IRI` is a citation. This is the rule that reads the source.
 
-The failure it exists for happened in this package. `Step` declared
+The failure it exists for happened in this package. `PlanStep` declared
 
     ONTOLOGY_IRI = "http://purl.org/net/p-plan#Step"      # "P-Plan grounding"
 
@@ -90,7 +90,7 @@ GROUNDED_CITATION: SemanticInvariant[Sequence[ModelRecord]] = SemanticInvariant(
     category=InvariantCategory.PROVENANCE,
     statement="Every ONTOLOGY_IRI names a term that exists in an ontology vendored in this repo.",
     why=("An ONTOLOGY_IRI asserts that a concept's meaning is the one defined elsewhere. Written "
-         "from memory it is indistinguishable from a checked claim — which is how `Step` came to "
+         "from memory it is indistinguishable from a checked claim — which is how `PlanStep` came to "
          "cite p-plan#Step while implementing a linear pipeline P-Plan does not describe. A "
          "citation nobody can follow is decoration with the authority of a fact."),
     check=_grounded,

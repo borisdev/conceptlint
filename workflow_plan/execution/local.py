@@ -1,6 +1,6 @@
-"""`LocalRunner` and `execute` — the smallest thing that can actually run a Plan.
+"""`SequentialRunner` and `execute` — the smallest thing that can actually run a Plan.
 
-    run(plan, inputs, LocalRunner(strategy))
+    run(plan, inputs, SequentialRunner(strategy))
 
 In-process, sequential, no retries, no concurrency, no durability. It exists to answer one
 question — *does the declared process, plus these implementations, produce the expected result?* —
@@ -10,10 +10,10 @@ engine. Plenty of Plans never will.
 ## The two failures this refuses to have
 
 **A coroutine returned instead of a result.** An `async def` bound into a synchronous Strategy
-returns a coroutine object, which is truthy, has a repr, and flows into the next Step as though it
-were data. Refused at the call site with the Step's name.
+returns a coroutine object, which is truthy, has a repr, and flows into the next PlanStep as though it
+were data. Refused at the call site with the PlanStep's name.
 
-**A silently discarded or mis-shaped output.** A Step declaring two outputs whose implementation
+**A silently discarded or mis-shaped output.** A PlanStep declaring two outputs whose implementation
 returns one value has to fail here, because the alternative is one Variable holding the whole tuple
 and the mismatch surfacing three Steps later as a type error about something unrelated.
 """
@@ -25,37 +25,37 @@ from workflow_plan.execution.runner import StepRunner
 from workflow_plan.execution.strategy import Strategy
 from workflow_plan.plan.bindings import execution_order
 from workflow_plan.plan.plan import Plan
-from workflow_plan.plan.step import Step, wired_inputs
+from workflow_plan.plan.plan_step import PlanStep, wired_inputs
 
 
 class ExecutionError(RuntimeError):
-    """An execution that cannot proceed. Never raised for a Step's own failure.
+    """An execution that cannot proceed. Never raised for a PlanStep's own failure.
 
-    A Step's implementation raising is that Step's business and propagates untouched — wrapping it
+    A PlanStep's implementation raising is that PlanStep's business and propagates untouched — wrapping it
     would bury the traceback the caller needs. This is raised only when the RUNNER cannot do its
     job: nothing bound, a coroutine it cannot await, an output shape that does not fit the
     declaration.
     """
 
 
-class LocalRunner:
-    """Perform a Step by calling whatever the Strategy bound to it. Satisfies `StepRunner`.
+class SequentialRunner:
+    """Perform a PlanStep by calling whatever the Strategy bound to it. Satisfies `StepRunner`.
 
     Deliberately does not inherit from the Protocol — structural conformance is the property being
-    demonstrated, and a test asserts `isinstance(LocalRunner({}), StepRunner)` holds anyway.
+    demonstrated, and a test asserts `isinstance(SequentialRunner({}), StepRunner)` holds anyway.
     """
 
     def __init__(self, strategy: Strategy) -> None:
         self.strategy = strategy
 
-    def run(self, step: Step, inputs: dict[str, Any]) -> dict[str, Any]:
+    def run(self, step: PlanStep, inputs: dict[str, Any]) -> dict[str, Any]:
         cls = type(step)
         impl = self.strategy.get(cls)
         if impl is None:
             raise ExecutionError(
                 f"no implementation bound for {cls.__name__}. Its Strategy has "
                 f"{sorted(c.__name__ for c in self.strategy)} — run check_strategy(plan, strategy) "
-                f"before executing and this is reported for every Step at once.")
+                f"before executing and this is reported for every PlanStep at once.")
 
         if cls.map_over is not None:
             return _run_mapped(cls, impl, inputs)
@@ -66,21 +66,21 @@ class LocalRunner:
             result.close()  # else "coroutine was never awaited" fires far from the real error
             raise ExecutionError(
                 f"{cls.__name__} is bound to an async implementation, which returned a coroutine "
-                f"instead of a result. LocalRunner is synchronous by decision — see runner.py. "
-                f"Nothing awaits this, so it would flow into the next Step as data.")
+                f"instead of a result. SequentialRunner is synchronous by decision — see runner.py. "
+                f"Nothing awaits this, so it would flow into the next PlanStep as data.")
 
         return _outputs_by_name(cls, result)
 
 
-def _run_mapped(cls: type[Step], impl: Any, inputs: dict[str, Any]) -> dict[str, Any]:
+def _run_mapped(cls: type[PlanStep], impl: Any, inputs: dict[str, Any]) -> dict[str, Any]:
     """Their `.map()` + `join`, run sequentially.
 
     The implementation is the PER-ITEM operation — `square: int -> int`, exactly theirs — so it is
     called once per element and the results are collected in order. That collection is their
     `reduce_list_append`, which is the reducer their own example uses.
 
-    ⚠️ Sequential here, and that is not a limitation being hidden: `LocalRunner` has no concurrency
-    by decision (see runner.py), so a mapped Step under it is a loop. Actual parallelism is what
+    ⚠️ Sequential here, and that is not a limitation being hidden: `SequentialRunner` has no concurrency
+    by decision (see runner.py), so a mapped PlanStep under it is a loop. Actual parallelism is what
     their engine is for, and `to_pydantic_graph` is where it belongs.
     """
     source, collected = cls.map_over
@@ -92,7 +92,7 @@ def _run_mapped(cls: type[Step], impl: Any, inputs: dict[str, Any]) -> dict[str,
     except TypeError:
         raise ExecutionError(
             f"{cls.__name__} maps over {source.name!r}, which arrived as "
-            f"{type(items).__name__} and is not iterable. A mapped Step fans out over a "
+            f"{type(items).__name__} and is not iterable. A mapped PlanStep fans out over a "
             f"sequence.") from None
 
     results = []
@@ -101,7 +101,7 @@ def _run_mapped(cls: type[Step], impl: Any, inputs: dict[str, Any]) -> dict[str,
         if hasattr(out, "__await__"):
             out.close()
             raise ExecutionError(
-                f"{cls.__name__} is bound to an async implementation; LocalRunner is synchronous "
+                f"{cls.__name__} is bound to an async implementation; SequentialRunner is synchronous "
                 f"by decision. See runner.py.")
         _check_type(cls, out_var, out)
         results.append(out)
@@ -109,8 +109,8 @@ def _run_mapped(cls: type[Step], impl: Any, inputs: dict[str, Any]) -> dict[str,
     return {collected.name: results}
 
 
-def _outputs_by_name(cls: type[Step], result: Any) -> dict[str, Any]:
-    """Map what an implementation returned onto what its Step declared it produces."""
+def _outputs_by_name(cls: type[PlanStep], result: Any) -> dict[str, Any]:
+    """Map what an implementation returned onto what its PlanStep declared it produces."""
     outs = cls.outputs
     if not outs:
         if result is not None:
@@ -135,7 +135,7 @@ def _outputs_by_name(cls: type[Step], result: Any) -> dict[str, Any]:
     return {v.name: r for v, r in zip(outs, result)}
 
 
-def _check_type(cls: type[Step], var: Any, value: Any) -> None:
+def _check_type(cls: type[PlanStep], var: Any, value: Any) -> None:
     """Does the produced value match the Variable's declared type?
 
     ⚠️ Plain classes only. `list[Finding]` is a parameterized generic and `isinstance` cannot test
@@ -149,18 +149,18 @@ def _check_type(cls: type[Step], var: Any, value: Any) -> None:
         raise ExecutionError(
             f"{cls.__name__} declares {var.name!r} as {declared.__name__} and its implementation "
             f"produced {type(value).__name__}. The declaration and the code disagree about what "
-            f"flows here; the next Step would receive the wrong thing.")
+            f"flows here; the next PlanStep would receive the wrong thing.")
 
 
 def run(plan: Plan, inputs: Mapping[str, Any], runner: StepRunner) -> dict[str, Any]:
-    """Run every Step in dependency order. Returns every Variable produced, keyed by name.
+    """Run every PlanStep in dependency order. Returns every Variable produced, keyed by name.
 
     Named `run` because that is the verb in the libraries this sits above — `agent.run()`,
     `graph.run()`. It is a FUNCTION and not `Plan.run()`: a method would bake execution semantics
     into the declaration, which is the coupling this package exists to avoid.
 
     ⚠️ Returns a plain dict, not a provenance record. `workflow_plan.ontology.prov.Run` is
-    `prov:Bundle` — one execution of a Plan, with an `Activity` per Step and an `Entity` per value —
+    `prov:Bundle` — one execution of a Plan, with an `Activity` per PlanStep and an `Entity` per value —
     and it is written, validated and entirely unused. Populating it from here is a real feature and
     has not been built; this docstring says so rather than letting the return type imply it.
 

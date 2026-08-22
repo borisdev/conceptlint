@@ -1,11 +1,11 @@
-"""What a Step needs to EXIST, as opposed to what flows through it.
+"""What a PlanStep needs to EXIST, as opposed to what flows through it.
 
     Variable   a typed value moving between Steps      an edge in the graph
-    Service    something that must be reachable         not a value; not an edge
+    PlanDependency    something that must be reachable         not a value; not an edge
 
 `RetrievePapers` consumes queries and produces pmids, and both are Variables. It also needs PubMed
 to be up, which is neither an input nor an output — it does not flow, nothing produces it, and no
-other Step consumes it. Modelling it as a Variable would put a fake node in every diagram and make
+other PlanStep consumes it. Modelling it as a Variable would put a fake node in every diagram and make
 `topology.single_producer` demand a producer for something nobody produces.
 
 ## Why this exists at all — the naming failure that motivated it
@@ -36,11 +36,11 @@ to `prov:Activity`, the execution, and `typing.plan_time_only` will refuse them 
 
 [PROV-O][prov] has `prov:SoftwareAgent` for the THING, and this class carries that IRI.
 
-It does NOT have a term for *"a planned Step requires this software"*. `prov:wasAssociatedWith`
+It does NOT have a term for *"a planned PlanStep requires this software"*. `prov:wasAssociatedWith`
 links an **Activity** — an execution that already happened — to an agent, which is the runtime half.
-[P-Plan][pplan] has no term for it either; its 18 terms are entirely Plan/Step/Variable structure.
+[P-Plan][pplan] has no term for it either; its 18 terms are entirely Plan/PlanStep/Variable structure.
 
-So `Step.uses` is **ours**, deliberately uncited. The alternative was to cite `wasAssociatedWith`
+So `PlanStep.uses` is **ours**, deliberately uncited. The alternative was to cite `wasAssociatedWith`
 and quietly mean something it does not say, which is exactly the failure
 `provenance.grounded_citation` was written to catch after this package once cited `p-plan#Step` from
 memory.
@@ -57,8 +57,8 @@ from workflow_plan.naming.declared_term import DeclaredTerm
 
 
 @dataclass(frozen=True)
-class Service(DeclaredTerm):
-    """Something a Step needs reachable: an API, a database, a file on disk.
+class PlanDependency(DeclaredTerm):
+    """Something a PlanStep needs reachable: an API, a database, a file on disk.
 
     Frozen and compared by identity-of-value like `Variable`, so two Steps referencing the same
     declared object genuinely share it rather than agreeing by string.
@@ -79,7 +79,7 @@ class Service(DeclaredTerm):
 
     ID: ClassVar[str] = "service"
     DEFINITION: ClassVar[str] = (
-        "Something a Step needs REACHABLE — an API, a database, a file on disk. Not a value, and "
+        "Something a PlanStep needs REACHABLE — an API, a database, a file on disk. Not a value, and "
         "not an edge."
     )
     RATIONALE: ClassVar[str] = (
@@ -96,4 +96,4 @@ class Service(DeclaredTerm):
     ALSO_KNOWN_AS: ClassVar[tuple[str, ...]] = ("Resource", "Dependency", "Backend")
 
     def __str__(self) -> str:  # pragma: no cover - display only
-        return f"Service({self.name})"
+        return f"PlanDependency({self.name})"

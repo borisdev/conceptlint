@@ -29,14 +29,14 @@ from conceptlint.core.lint import lint
 from workflow_plan.invariants import validate
 from workflow_plan.invariants.typing.plan_time_only import PLAN_TIME_ONLY
 from workflow_plan.naming.records import discover_models
-from workflow_plan.plan import MultiStep, Plan, Service, Step, Variable
+from workflow_plan.plan import MultiStep, Plan, PlanDependency, PlanStep, Variable
 
 MINIMAL = pathlib.Path(__file__).resolve().parent / "minimal"
 
 #: The vocabulary every subject file is checked AGAINST. Was five toy `Concept` declarations in
 #: `conceptlint/ontologies/pplan/`; it is now the real types, which is the point of the base — a
 #: case that reuses a canonical name is measured against the name the package actually ships.
-SEED = [Plan, Step, Variable, Service, MultiStep]
+SEED = [Plan, PlanStep, Variable, PlanDependency, MultiStep]
 
 #: eval rule name -> the rule that implements it today, or None if nothing does.
 #:

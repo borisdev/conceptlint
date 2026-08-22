@@ -1,8 +1,8 @@
 """`Plan` — a complete typed process specification.
 
     Plan
-     ├── Step
-     ├── Step
+     ├── PlanStep
+     ├── PlanStep
      ├── Variable
      └── bindings
 
@@ -25,15 +25,15 @@ The first milestone is an **inspectable, validated specification**, not an execu
 
     what Steps exist            .steps
     what Variables exist        .variables
-    what each Step consumes     Step.inputs
-    what each Step produces     Step.outputs
+    what each PlanStep consumes     PlanStep.inputs
+    what each PlanStep produces     PlanStep.outputs
     how Variables are bound     bindings.producers / consumers / edges
     what topology results       bindings.edges
     which invariants apply      whichever the caller runs
     does it satisfy them        validate(plan, invariants)
 
 An execution adapter — plain Python, Temporal, LangGraph — wraps Steps from outside. Never the
-reverse: `@activity.defn` on a Step subclass couples a process definition to one runtime, which is
+reverse: `@activity.defn` on a PlanStep subclass couples a process definition to one runtime, which is
 the coupling this package exists to avoid.
 """
 from __future__ import annotations
@@ -42,15 +42,15 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Sequence
 
 from workflow_plan.naming.declared_term import DeclaredTerm
-from workflow_plan.plan.step import Step, wired_inputs, wired_outputs
-from workflow_plan.plan.service import Service
+from workflow_plan.plan.plan_step import PlanStep, wired_inputs, wired_outputs
+from workflow_plan.plan.plan_dependency import PlanDependency
 from workflow_plan.plan.variable import Variable
 
 
 class PlanError(ValueError):
     """A Plan that cannot be constructed at all. Not the same as failing an invariant.
 
-    Construction refuses only what makes the object incoherent — a Step class instead of an
+    Construction refuses only what makes the object incoherent — a PlanStep class instead of an
     instance, a runtime object among plan-time declarations. Everything a caller might legitimately
     want to allow (cycles, unbound inputs, orphan Variables) is an INVARIANT, so it can be checked,
     reported, or deliberately permitted.
@@ -66,7 +66,7 @@ class Plan(DeclaredTerm):
     """
 
     name: str
-    steps: tuple[Step, ...]
+    steps: tuple[PlanStep, ...]
 
     #: What the Plan EXPECTS to be given. Optional, and the reason it exists is subtle:
     #:
@@ -79,10 +79,10 @@ class Plan(DeclaredTerm):
     #: never render as a passing one.
     declared_inputs: tuple[Variable[Any], ...] = ()
 
-    #: Every Service any Step may reference. Top-level declaration is MANDATORY, exactly as
-    #: docker-compose requires for a named volume: a Step using something absent from this tuple is
+    #: Every PlanDependency any PlanStep may reference. Top-level declaration is MANDATORY, exactly as
+    #: docker-compose requires for a named volume: a PlanStep using something absent from this tuple is
     #: a violation, so one word cannot come to mean three things.
-    services: tuple[Service, ...] = ()
+    services: tuple[PlanDependency, ...] = ()
 
     ID: ClassVar[str] = "plan"
     DEFINITION: ClassVar[str] = (
@@ -103,20 +103,20 @@ class Plan(DeclaredTerm):
         if not self.steps:
             raise PlanError(f"Plan {self.name!r} has no steps")
         for s in self.steps:
-            if isinstance(s, type) and issubclass(s, Step):
+            if isinstance(s, type) and issubclass(s, PlanStep):
                 raise PlanError(
                     f"Plan {self.name!r} holds the CLASS {s.__name__}, not an instance — write "
-                    f"{s.__name__}() . A class is a declaration of a Step, not a Step.")
-            if not isinstance(s, Step):
+                    f"{s.__name__}() . A class is a declaration of a PlanStep, not a PlanStep.")
+            if not isinstance(s, PlanStep):
                 raise PlanError(
-                    f"Plan {self.name!r} contains {s!r}, which is not a Step. A runtime object "
-                    f"among plan-time declarations is the Step/Activity collapse P-Plan separates.")
+                    f"Plan {self.name!r} contains {s!r}, which is not a PlanStep. A runtime object "
+                    f"among plan-time declarations is the PlanStep/Activity collapse P-Plan separates.")
 
     # ── what exists ──────────────────────────────────────────────────────────────────────────────
 
     @property
     def variables(self) -> tuple[Variable[Any], ...]:
-        """Every Variable any Step consumes or produces, in first-seen order."""
+        """Every Variable any PlanStep consumes or produces, in first-seen order."""
         seen: dict[Variable[Any], None] = {}
         for s in self.steps:
             for v in (*wired_inputs(s), *wired_outputs(s)):
@@ -143,13 +143,13 @@ class Plan(DeclaredTerm):
                      and any(v in wired_outputs(s) for s in self.steps))
 
     @property
-    def used_services(self) -> tuple[Service, ...]:
-        """Every Service the Steps actually reference, first-seen order.
+    def used_services(self) -> tuple[PlanDependency, ...]:
+        """Every PlanDependency the Steps actually reference, first-seen order.
 
-        Compare against `services` to find both failure directions: a Step reaching for something
+        Compare against `services` to find both failure directions: a PlanStep reaching for something
         undeclared, and a declaration nothing uses.
         """
-        seen: dict[Service, None] = {}
+        seen: dict[PlanDependency, None] = {}
         for s in self.steps:
             for svc in getattr(s, "uses", ()):
                 seen.setdefault(svc, None)
@@ -182,23 +182,23 @@ def check_arms(arms: Sequence[Plan]) -> None:
 
 
 @dataclass(frozen=True)
-class MultiStep(Plan, Step):
-    """[p-plan:MultiStep](http://purl.org/net/p-plan#MultiStep) — a Plan that appears as a Step.
+class MultiStep(Plan, PlanStep):
+    """[p-plan:MultiStep](http://purl.org/net/p-plan#MultiStep) — a Plan that appears as a PlanStep.
 
     `rdfs:subClassOf` **both** `p-plan:Plan` and `p-plan:Step`, bound to its definition by
     `isDecomposedAsPlan`. This is how a Plan nests: one node in an outer Plan, a whole Plan inside.
 
-    ## ⚠️ It did not inherit from `Step` until 2026-08-20, so it could not BE one
+    ## ⚠️ It did not inherit from `PlanStep` until 2026-08-20, so it could not BE one
 
     It subclassed `Plan` alone, and `Plan.__post_init__` requires every entry in `steps` to be a
-    `Step` — so putting a MultiStep inside a Plan raised. The one thing the class exists for did not
+    `PlanStep` — so putting a MultiStep inside a Plan raised. The one thing the class exists for did not
     work, for as long as the class existed, because nothing ever nested a Plan. The ontology
     citation was right and the code did not implement it: the failure
     `provenance.grounded_citation` exists to catch, in the class that carries the IRI.
 
     Ports are DERIVED — `Plan.inputs` and `Plan.outputs` already mean free and terminal Variables,
     which is exactly what this node consumes and produces. Declaring them again would be a second
-    source of truth that goes stale the moment a nested Step moves.
+    source of truth that goes stale the moment a nested PlanStep moves.
 
     ## `until` — the termination predicate, declared but not implemented here
 
@@ -211,10 +211,10 @@ class MultiStep(Plan, Step):
 
     Plan-time: it declares WHICH Variable governs termination. The test itself is a function and
     therefore an implementation, so it lives in the `Strategy` alongside every other one — the same
-    split as `Step`, for the same reason. This keeps `Decision`, branching and `End` out of the Plan
+    split as `PlanStep`, for the same reason. This keeps `Decision`, branching and `End` out of the Plan
     layer, where pydantic-graph and LangGraph already own them and do them well.
 
-    ⚠️ `until` is OURS, deliberately uncited. P-Plan's 18 terms are Plan/Step/Variable structure and
+    ⚠️ `until` is OURS, deliberately uncited. P-Plan's 18 terms are Plan/PlanStep/Variable structure and
     PROV-O describes executions; neither has a word for "this planned region repeats until". Citing
     one that does not say it is the failure this package was built to report.
     """
@@ -226,24 +226,24 @@ class MultiStep(Plan, Step):
 
     ID: ClassVar[str] = "multi_step"
     DEFINITION: ClassVar[str] = (
-        "A Plan that appears as one Step in an outer Plan — how a Plan nests."
+        "A Plan that appears as one PlanStep in an outer Plan — how a Plan nests."
     )
     RATIONALE: ClassVar[str] = (
         "Without it, a Plan large enough to need sections has to be flattened, and the section "
         "boundary — the thing a reader navigates by — exists only in a comment."
     )
 
-    #: ⚠️ `Step` and not `Plan`, though it is `rdfs:subClassOf` both and both are Python bases.
+    #: ⚠️ `PlanStep` and not `Plan`, though it is `rdfs:subClassOf` both and both are Python bases.
     #:
     #: REFINES is the escape hatch for the NAMING laws, so it points at the term whose WORD this
-    #: name reuses — and `MultiStep` reuses `Step`. Pointed at `Plan` it is a true statement that
+    #: name reuses — and `MultiStep` reuses `PlanStep`. Pointed at `Plan` it is a true statement that
     #: silences nothing: `canonical-reuse` still reports "MultiStep contains the canonical name
-    #: Step but declares no relationship to it", and a documented fix that does not silence the
+    #: PlanStep but declares no relationship to it", and a documented fix that does not silence the
     #: finding is the fastest way to teach someone the tool is broken.
     #:
     #: The Plan relation is not lost — it is the Python base, which `naming.records` reads as an
     #: explicit refinement in the only way Python has.
-    REFINES: ClassVar[type[DeclaredTerm] | None] = Step
+    REFINES: ClassVar[type[DeclaredTerm] | None] = PlanStep
 
     ONTOLOGY_IRI: ClassVar[str] = "http://purl.org/net/p-plan#MultiStep"
 

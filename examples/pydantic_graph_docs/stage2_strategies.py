@@ -1,10 +1,10 @@
-"""STAGE 2 — three implementations of ONE logical Step, evaluated against each other.
+"""STAGE 2 — three implementations of ONE logical PlanStep, evaluated against each other.
 
 Domain is theirs: `parallel_processing.py` squares numbers. The Plan:
 
     numbers ──> Square ──> squares ──> Total ──> total
 
-Three strategies vary ONE Step. `Square` stands in for the step you would really want to vary —
+Three strategies vary ONE PlanStep. `Square` stands in for the step you would really want to vary —
 a different model, a different prompt, a different agent. Deterministic stand-ins here so the file
 runs with no API key and the same numbers come out every time; the STRUCTURE is what is being
 shown, and it is identical either way.
@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import asyncio
 
-from workflow_plan import Plan, Step, Variable, render_mermaid, validate
-from workflow_plan.execution import LocalRunner, check_strategy, run
+from workflow_plan import Plan, PlanStep, Variable, render_mermaid, validate
+from workflow_plan.execution import SequentialRunner, check_strategy, run
 from workflow_plan.execution.pydantic_graph import to_pydantic_graph
 from workflow_plan.invariants import topology, typing
 
@@ -49,7 +49,7 @@ async def main() -> None:
         cells = []
         for strategy in ARMS.values():
             assert check_strategy(plan, strategy) == ()
-            got = run(plan, {"numbers": case}, LocalRunner(strategy))["total"]
+            got = run(plan, {"numbers": case}, SequentialRunner(strategy))["total"]
             cells.append(f"{got:>13} {'ok' if got == expected else 'WRONG':>6}")
         print(f"  {str(case):<12} {expected:>9} " + " ".join(cells))
 

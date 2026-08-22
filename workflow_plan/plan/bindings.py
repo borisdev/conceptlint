@@ -5,7 +5,7 @@ A binding is not a separate object to maintain. Two Steps are connected when the
 a second time would create two sources of truth for one fact, and the second one goes stale.
 
     Variable[A] ──┐
-    Variable[B] ──┼──> Step ──> Variable[D]
+    Variable[B] ──┼──> PlanStep ──> Variable[D]
     Variable[C] ──┘
 
 Everything the typing and topology invariants need is computed here, once, so no invariant
@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from workflow_plan.plan.step import Step, wired_inputs, wired_outputs
+from workflow_plan.plan.plan_step import PlanStep, wired_inputs, wired_outputs
 from workflow_plan.plan.variable import Variable
 
 if TYPE_CHECKING:
@@ -33,16 +33,16 @@ if TYPE_CHECKING:
 class Edge:
     """One dependency: `producer` makes `variable`, which `consumer` reads."""
 
-    producer: Step
+    producer: PlanStep
     variable: Variable[Any]
-    consumer: Step
+    consumer: PlanStep
 
     def __repr__(self) -> str:
         return (f"{type(self.producer).__name__} --{self.variable.name}--> "
                 f"{type(self.consumer).__name__}")
 
 
-def producers(plan: Plan) -> dict[Variable[Any], list[Step]]:
+def producers(plan: Plan) -> dict[Variable[Any], list[PlanStep]]:
     """Variable -> the Steps that produce it.
 
     A LIST, deliberately, even though `p-plan:isOutputVarOf` is an `owl:FunctionalProperty` and one
@@ -50,16 +50,16 @@ def producers(plan: Plan) -> dict[Variable[Any], list[Step]]:
     returning a dict-of-one would make the second producer vanish silently and the invariant
     unwritable.
     """
-    out: dict[Variable[Any], list[Step]] = {}
+    out: dict[Variable[Any], list[PlanStep]] = {}
     for s in plan.steps:
         for v in wired_outputs(s):
             out.setdefault(v, []).append(s)
     return out
 
 
-def consumers(plan: Plan) -> dict[Variable[Any], list[Step]]:
+def consumers(plan: Plan) -> dict[Variable[Any], list[PlanStep]]:
     """Variable -> the Steps that consume it. Many is legal: `isInputVarOf` is not functional."""
-    out: dict[Variable[Any], list[Step]] = {}
+    out: dict[Variable[Any], list[PlanStep]] = {}
     for s in plan.steps:
         for v in wired_inputs(s):
             out.setdefault(v, []).append(s)
@@ -77,8 +77,8 @@ def edges(plan: Plan) -> tuple[Edge, ...]:
     )
 
 
-def unbound_inputs(plan: Plan) -> tuple[tuple[Step, Variable[Any]], ...]:
-    """Step inputs that nothing in the Plan produces and that are not Plan inputs.
+def unbound_inputs(plan: Plan) -> tuple[tuple[PlanStep, Variable[Any]], ...]:
+    """PlanStep inputs that nothing in the Plan produces and that are not Plan inputs.
 
     ⚠️ A free variable is NOT unbound. `plan.inputs` are supplied by the caller and are the Plan's
     own signature; treating them as errors would make every Plan with an input invalid.
@@ -93,7 +93,7 @@ def orphans(plan: Plan) -> tuple[Variable[Any], ...]:
     """Variables produced but never consumed AND never a Plan output.
 
     Since `plan.outputs` is defined as produced-and-unconsumed, an orphan can only arise from a
-    Variable that is neither — which today means a Step declaring an output nothing reads while the
+    Variable that is neither — which today means a PlanStep declaring an output nothing reads while the
     Plan does not expose it either. Kept as its own function so the invariant can say WHICH.
     """
     consumed = {v for s in plan.steps for v in wired_inputs(s)}
@@ -102,7 +102,7 @@ def orphans(plan: Plan) -> tuple[Variable[Any], ...]:
                  if v not in consumed and v not in terminal)
 
 
-def execution_order(plan: Plan) -> tuple[Step, ...]:
+def execution_order(plan: Plan) -> tuple[PlanStep, ...]:
     """Steps in a valid execution order — Kahn's algorithm over the bindings.
 
     ⚠️ RAISES on a cycle, because there is no correct answer to return. That is not the acyclicity
@@ -117,7 +117,7 @@ def execution_order(plan: Plan) -> tuple[Step, ...]:
     prod = producers(plan)
     pending = {s: {p for v in wired_inputs(s) for p in prod.get(v, ()) if p is not s}
                for s in plan.steps}
-    ordered: list[Step] = []
+    ordered: list[PlanStep] = []
     while pending:
         ready = [s for s, deps in pending.items() if not deps - set(ordered)]
         if not ready:

@@ -2,11 +2,11 @@
 
     render_mermaid(plan)
 
-A hand-drawn pipeline diagram is a claim about the code that stops being true the moment a Step
+A hand-drawn pipeline diagram is a claim about the code that stops being true the moment a PlanStep
 moves, and nothing tells you. Deriving it makes that impossible: add an input and the picture
 changes with no edit here.
 
-⚠️ No domain concepts appear in this module. It renders `Plan`, `Step` and `Variable` and knows
+⚠️ No domain concepts appear in this module. It renders `Plan`, `PlanStep` and `Variable` and knows
 nothing about what any of them mean — which is what lets the same renderer draw a medical evidence
 build and anything else.
 """
@@ -17,7 +17,7 @@ from typing import Any, Sequence
 
 from workflow_plan.plan import bindings
 from workflow_plan.plan.plan import Plan
-from workflow_plan.plan.step import wired_inputs, wired_outputs
+from workflow_plan.plan.plan_step import wired_inputs, wired_outputs
 from workflow_plan.plan.variable import Variable
 
 _SPLIT = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
@@ -45,8 +45,8 @@ def _node(plan: Plan, index: int) -> str:
 def _impl_label(step: object, strategy: Any) -> str:
     """The bound implementation's name, on a second line, or nothing.
 
-    ⚠️ Nothing when a Step is UNBOUND — deliberately not "unbound" or "?". A diagram that invents a
-    label for a Step nobody has implemented is asserting something about the Strategy; the absence
+    ⚠️ Nothing when a PlanStep is UNBOUND — deliberately not "unbound" or "?". A diagram that invents a
+    label for a PlanStep nobody has implemented is asserting something about the Strategy; the absence
     says only that this render was given no Strategy for it, which is the truth.
     """
     if strategy is None:
@@ -65,7 +65,7 @@ def render_mermaid(plan: Plan, strategy: Any = None) -> str:
     """A mermaid `flowchart TD` of the Plan's actual structure.
 
     Free Variables enter as ports, terminal Variables leave as ports, and every internal arrow is
-    a producer→consumer edge labelled with the Variable that flows. A Step with three inputs shows
+    a producer→consumer edge labelled with the Variable that flows. A PlanStep with three inputs shows
     three arrows — which is the whole reason this reads from bindings rather than from step order.
 
     Pass a `Strategy` and each node also names the implementation bound to it. Render the same Plan

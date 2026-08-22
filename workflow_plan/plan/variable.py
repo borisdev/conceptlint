@@ -1,6 +1,6 @@
 """`Variable[T]` — a typed plan-time placeholder.
 
-The piece the previous dataflow attempt did not have. There, a Step declared `consumes: tuple[str,
+The piece the previous dataflow attempt did not have. There, a PlanStep declared `consumes: tuple[str,
 ...]` — artifact kinds as STRINGS — so a typo rewired the graph silently: it still built, nothing
 type-checked, and the mistake surfaced much later as a shape error somewhere else.
 
@@ -46,7 +46,7 @@ class Variable(DeclaredTerm, Generic[T]):
 
     def __post_init__(self) -> None:
         if not self.name:
-            raise ValueError("a Variable needs a name — it is how a Step refers to it")
+            raise ValueError("a Variable needs a name — it is how a PlanStep refers to it")
         if not isinstance(self.type, type) and get_origin(self.type) is None:
             raise TypeError(
                 f"Variable {self.name!r} needs a TYPE, got {self.type!r}. A string here is the "

@@ -475,7 +475,7 @@ def test_enrichment_needs_no_base_class(tmp_path: pathlib.Path) -> None:
     """`ALSO_KNOWN_AS` is read off a plain class. Requiring a base would be the tax we refuse."""
     (tmp_path / "m.py").write_text(textwrap.dedent('''
         class Activity:
-            """What actually happened when a Step ran."""
+            """What actually happened when a PlanStep ran."""
             ONTOLOGY_IRI = "http://www.w3.org/ns/prov#Activity"
             ALSO_KNOWN_AS = ("StepRun", "TaskInstance")
     '''), encoding="utf-8")

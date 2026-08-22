@@ -16,8 +16,8 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
-from workflow_plan import Plan, Step, Variable, render_mermaid, validate
-from workflow_plan.execution import LocalRunner, run
+from workflow_plan import Plan, PlanStep, Variable, render_mermaid, validate
+from workflow_plan.execution import SequentialRunner, run
 from workflow_plan.execution.pydantic_graph import to_pydantic_graph
 from workflow_plan.invariants import topology, typing
 
@@ -61,11 +61,11 @@ count = Variable("count", int)
 doubled = Variable("doubled", int)
 
 
-class Increment(Step):
+class Increment(PlanStep):
     inputs, outputs = (), (count,)
 
 
-class DoubleIt(Step):
+class DoubleIt(PlanStep):
     inputs, outputs = (count,), (doubled,)
 
 
@@ -88,11 +88,11 @@ async def main() -> None:
     print(render_mermaid(plan))
 
     theirs = await their_version()
-    ours_local = run(plan, {}, LocalRunner(strategy))["doubled"]
+    ours_local = run(plan, {}, SequentialRunner(strategy))["doubled"]
     ours_on_their_runtime = (await to_pydantic_graph(plan, strategy).run(state={}, inputs={}))["doubled"]
 
     print(f"  their GraphBuilder, hand-wired   {theirs}")
-    print(f"  our Plan, LocalRunner            {ours_local}")
+    print(f"  our Plan, SequentialRunner            {ours_local}")
     print(f"  our Plan, compiled onto theirs   {ours_on_their_runtime}")
     assert theirs == ours_local == ours_on_their_runtime == 2
     print("  all three agree                  ✓")

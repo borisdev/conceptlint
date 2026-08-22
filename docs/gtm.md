@@ -70,7 +70,7 @@ tiny working ConceptLint → excellent Pydantic demo → README in ~30s
     → Pydantic community → Claude Code / agentic audience
 ```
 
-⚠️ **Step 4 is the one that has not been done, and it matters most.** ConceptLint must not look like
+⚠️ **PlanStep 4 is the one that has not been done, and it matters most.** ConceptLint must not look like
 a toy invented to justify itself. The line to be able to say honestly:
 
 > "I built this because Claude and I were developing a domain type system together and repeatedly

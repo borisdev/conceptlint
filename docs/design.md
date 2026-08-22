@@ -13,7 +13,7 @@ p-plan:Step      the intended operation        prov:Activity    one execution of
 p-plan:Variable  a named typed value slot      prov:Entity      the value that actually flowed
 ```
 
-`Step ≠ Activity` and `Variable ≠ Entity`, **even where an execution framework maps them one to
+`PlanStep ≠ Activity` and `Variable ≠ Entity`, **even where an execution framework maps them one to
 one.** That mapping is a property of the framework, not of the concepts.
 
 The failure, which really happened:
@@ -40,7 +40,7 @@ The alternative is inferring intent from types, which guesses. A field named `va
 on a plan-time type and unremarkable on a config. The list is short, readable and arguable — which
 is what a rule people will actually keep needs to be.
 
-**Why it matters beyond tidiness:** once code believes `Step == Activity`, *"the definition is
+**Why it matters beyond tidiness:** once code believes `PlanStep == Activity`, *"the definition is
 wrong"* and *"that run failed"* become the same sentence with opposite fixes.
 
 ---
@@ -81,7 +81,7 @@ somewhere else entirely.
 ### `topology/` — cycles, unbound inputs, orphans, two producers
 
 `single_producer` is the one with external grounding. P-Plan's `isOutputVarOf` **is** an
-`owl:FunctionalProperty` — a Variable is the output of exactly one Step. Two producers for one
+`owl:FunctionalProperty` — a Variable is the output of exactly one PlanStep. Two producers for one
 artifact is not a style preference; it is a wiring bug, and downstream it shows up as two
 overlapping notions of the same concept, which then gets a second name, which is now a `naming/`
 problem too.
@@ -94,7 +94,7 @@ See §5.
 
 ## 3. `declared_inputs`, and why a rule that cannot fire is worse than no rule
 
-`topology.bound_inputs` should report a Step consuming a Variable nothing produces. The first
+`topology.bound_inputs` should report a PlanStep consuming a Variable nothing produces. The first
 version derived the Plan's inputs — *"consumed here, produced by nothing here"*. Which means:
 
 ```
@@ -156,7 +156,7 @@ A constraint that only says *no* gets deleted. The order:
 convenience is not.** The test is whether anything other than the current diff gets worse if you
 refuse.
 
-`Step[InputT, OutputT]` died to step 6 and should have — a real builder could not express a
+`PlanStep[InputT, OutputT]` died to step 6 and should have — a real builder could not express a
 three-input step. Routing around it would have hidden a wrong signature. **The friction is
 information.**
 

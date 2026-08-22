@@ -19,7 +19,7 @@ Nothing broke. The docstring still said "a named typed value slot in a plan", th
 passed, and `Variable` had quietly become a runtime record wearing a plan-time name. Everything
 downstream that reasoned about plan-time structure was then reasoning about execution state.
 
-⚠️ This is why `Step ≠ Activity` and `Variable ≠ Entity` are worth enforcing rather than merely
+⚠️ This is why `PlanStep ≠ Activity` and `Variable ≠ Entity` are worth enforcing rather than merely
 documenting: a runtime framework may map them one to one, and the moment code believes that, *"the
 definition is wrong"* and *"that run failed"* become the same sentence with opposite fixes.
 
@@ -46,7 +46,12 @@ RUNTIME_FIELDS = frozenset({
 
 #: Types whose meaning is plan-time. Matched by name, because that is the claim being made — a
 #: class called `Variable` asserts P-Plan's `Variable`, whatever module it sits in.
-PLAN_TIME_NAMES = frozenset({"Plan", "Step", "Variable", "MultiStep"})
+#:
+#: ⚠️ BOTH `Step` and `PlanStep`. These are names in somebody ELSE's code, so renaming our class
+#: must not narrow what the rule looks for: `Step` is the name a user is most likely to write, and
+#: it is still P-Plan's own term. The rename pass took it out for one commit, which would have
+#: quietly stopped the rule firing on the commonest case while every test stayed green.
+PLAN_TIME_NAMES = frozenset({"Plan", "Step", "PlanStep", "Variable", "MultiStep"})
 
 
 def _plan_time_only(models: Sequence[ModelRecord]) -> None:
@@ -67,7 +72,7 @@ def _plan_time_only(models: Sequence[ModelRecord]) -> None:
 PLAN_TIME_ONLY: SemanticInvariant[Sequence[ModelRecord]] = SemanticInvariant(
     id="typing.plan_time_only",
     category=InvariantCategory.TYPING,
-    statement="A plan-time type (Plan, Step, Variable) must not carry runtime execution state.",
+    statement="A plan-time type (Plan, PlanStep, Variable) must not carry runtime execution state.",
     why=("Observed: `Variable` gained `value` and `started_at`, kept its docstring, kept passing "
          "its tests, and silently became a runtime record. Nothing failed — which is why a "
          "docstring cannot enforce this and a rule has to."),

@@ -22,8 +22,8 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
-from workflow_plan import Plan, Step, Variable, render_mermaid, validate
-from workflow_plan.execution import LocalRunner, check_strategy, run
+from workflow_plan import Plan, PlanStep, Variable, render_mermaid, validate
+from workflow_plan.execution import SequentialRunner, check_strategy, run
 from workflow_plan.execution.pydantic_graph import to_pydantic_graph
 from workflow_plan.invariants import topology, typing
 
@@ -51,19 +51,19 @@ feedback = Variable("feedback", Critique)
 email = Variable("email", Email)
 
 
-class WriteEmail(Step):
+class WriteEmail(PlanStep):
     """Write the first draft from what we know about the reader."""
 
     inputs, outputs = (user,), (draft,)
 
 
-class CritiqueDraft(Step):
+class CritiqueDraft(PlanStep):
     """Say what is wrong with it."""
 
     inputs, outputs = (draft,), (feedback,)
 
 
-class Revise(Step):
+class Revise(PlanStep):
     """⚠️ THE FAN-IN. Needs the draft and the critique of it, at once."""
 
     inputs, outputs = (draft, feedback), (email,)
@@ -116,7 +116,7 @@ async def main() -> None:
     for arm, strategy in (("terse", terse), ("warm", warm)):
         assert check_strategy(plan, strategy) == ()
 
-        local = run(plan, {"user": reader}, LocalRunner(strategy))["email"]
+        local = run(plan, {"user": reader}, SequentialRunner(strategy))["email"]
 
         graph = to_pydantic_graph(plan, strategy)
         on_graph = (await graph.run(state={}, inputs={"user": reader}))["email"]
@@ -125,7 +125,7 @@ async def main() -> None:
             f"{arm}: the two runtimes disagreed — {local!r} vs {on_graph!r}. That would mean the "
             f"Plan does not determine the result, which is the claim this file exists to check.")
         print(f"\n{arm}:")
-        print(f"  LocalRunner    {local.body}")
+        print(f"  SequentialRunner    {local.body}")
         print(f"  Pydantic Graph {on_graph.body}")
         print("  identical      ✓")
 

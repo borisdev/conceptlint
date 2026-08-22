@@ -52,15 +52,15 @@ def _bound_inputs(plan: Plan) -> None:
     if missing:
         detail = ", ".join(f"{type(s).__name__} needs {v.name!r}" for s, v in missing)
         raise BOUND_INPUTS.violated(
-            f"{len(missing)} Step input(s) are bound to nothing: {detail}. Either a Step upstream "
+            f"{len(missing)} PlanStep input(s) are bound to nothing: {detail}. Either a PlanStep upstream "
             f"should produce them, or they belong in the Plan's own inputs.")
 
 
 BOUND_INPUTS: SemanticInvariant[Plan] = SemanticInvariant(
     id="topology.bound_inputs",
     category=InvariantCategory.TOPOLOGY,
-    statement="Every Step input is either produced inside the Plan or is a Plan input.",
-    why=("An input nothing supplies fails at run time, deep inside whichever Step reads it, with a "
+    statement="Every PlanStep input is either produced inside the Plan or is a Plan input.",
+    why=("An input nothing supplies fails at run time, deep inside whichever PlanStep reads it, with a "
          "message about a missing key rather than a missing binding. ⚠️ A Plan INPUT is not "
          "unbound — it is the Plan's signature, and counting it as an error would make every Plan "
          "that takes an argument invalid."),
@@ -74,16 +74,16 @@ def _no_orphans(plan: Plan) -> None:
         names = ", ".join(v.name for v in stranded)
         raise NO_ORPHAN_VARIABLES.violated(
             f"produced but never read and not a Plan output: {names}. Either something should "
-            f"consume it, or the Step should not be producing it.")
+            f"consume it, or the PlanStep should not be producing it.")
 
 
 NO_ORPHAN_VARIABLES: SemanticInvariant[Plan] = SemanticInvariant(
     id="topology.orphan_variables",
     category=InvariantCategory.TOPOLOGY,
-    statement="Every produced Variable is consumed by a Step or exposed as a Plan output.",
+    statement="Every produced Variable is consumed by a PlanStep or exposed as a Plan output.",
     why=("A Variable nobody reads is work being done for nothing, or — worse — a rewiring that "
-         "left a Step still computing a value the new topology no longer uses. The second reads "
-         "as a working Plan and quietly costs whatever that Step costs."),
+         "left a PlanStep still computing a value the new topology no longer uses. The second reads "
+         "as a working Plan and quietly costs whatever that PlanStep costs."),
     check=_no_orphans,
 )
 
@@ -102,7 +102,7 @@ def _single_producer(plan: Plan) -> None:
 SINGLE_PRODUCER: SemanticInvariant[Plan] = SemanticInvariant(
     id="topology.single_producer",
     category=InvariantCategory.TOPOLOGY,
-    statement="Each Variable is produced by exactly one Step.",
+    statement="Each Variable is produced by exactly one PlanStep.",
     why=("This one is NOT ours — `p-plan:isOutputVarOf` is declared `owl:FunctionalProperty` in "
          "the vendored ontology, so it is an axiom we inherit rather than a rule we chose. With "
          "two producers, 'where did this value come from' has two answers and provenance stops "

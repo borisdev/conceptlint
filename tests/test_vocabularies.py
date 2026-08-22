@@ -73,7 +73,7 @@ def test_the_genuinely_ambiguous_words_are_not_seeded_as_synonyms() -> None:
 
 
 def test_no_alias_is_also_a_canonical_term() -> None:
-    """`Step` must never be seeded as an alias of something else, or the table contradicts itself."""
+    """`PlanStep` must never be seeded as an alias of something else, or the table contradicts itself."""
     canon = {c.lower() for c in DATAFLOW}
     for alias in seeded_aliases():
         assert alias not in canon, f"{alias!r} is both canonical and an alias"

@@ -1,9 +1,9 @@
 """PROV-O types: what actually happened, as opposed to what was planned.
 
-    p-plan:Step      the intended operation        workflow_plan.plan.Step
+    p-plan:Step      the intended operation        workflow_plan.plan.PlanStep
     prov:Activity    ONE EXECUTION of it           here
 
-⚠️ Temporal's `Activity` is `prov:Activity`, not our `Step`. Mapping their Activity onto our Step is
+⚠️ Temporal's `Activity` is `prov:Activity`, not our `PlanStep`. Mapping their Activity onto our PlanStep is
 wrong by exactly one level, and nothing about either name warns you.
 
 This package was importable but exported nothing — `__init__.py` was empty — so every one of these

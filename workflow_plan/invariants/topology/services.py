@@ -4,7 +4,7 @@ A named volume in compose must be declared at the top level before a service may
 single constraint is what stops one name meaning several things: there is exactly one declared
 object and every reference must point at it.
 
-These reproduce it for `Service`. Neither is clever; the value is entirely in the rule being
+These reproduce it for `PlanDependency`. Neither is clever; the value is entirely in the rule being
 mandatory rather than conventional.
 """
 from __future__ import annotations
@@ -19,7 +19,7 @@ def _declared(plan: Plan) -> None:
         return
     names = ", ".join(sorted(str(s.name) for s in undeclared))
     raise DECLARED_SERVICES.violated(
-        f"Plan {plan.name!r} has Step(s) using undeclared service(s): {names}. Add them to the "
+        f"Plan {plan.name!r} has PlanStep(s) using undeclared service(s): {names}. Add them to the "
         f"Plan's `services=(...)`. A service referenced but never declared is how one word comes to "
         f"mean three things — which is the failure this rule exists to make impossible.")
 
@@ -27,7 +27,7 @@ def _declared(plan: Plan) -> None:
 DECLARED_SERVICES: SemanticInvariant[Plan] = SemanticInvariant(
     id="topology.declared_services",
     category=InvariantCategory.TOPOLOGY,
-    statement="Every Service a Step uses is declared in its Plan's `services`.",
+    statement="Every PlanDependency a PlanStep uses is declared in its Plan's `services`.",
     why=("Stolen from docker-compose, where a named volume must be declared top-level before any "
          "service may mount it. Observed failure: a conversation used 'retriever' for three "
          "different things across an hour because no declared object owned the word. The dataflow "
@@ -43,7 +43,7 @@ def _no_orphans(plan: Plan) -> None:
         return
     names = ", ".join(sorted(str(s.name) for s in orphans))
     raise NO_ORPHAN_SERVICES.violated(
-        f"Plan {plan.name!r} declares service(s) no Step uses: {names}. Either a Step should say "
+        f"Plan {plan.name!r} declares service(s) no PlanStep uses: {names}. Either a PlanStep should say "
         f"`uses = (...)`, or the declaration is stale. A Plan that overstates its dependencies "
         f"makes a deployment decision on evidence that is not there.")
 
@@ -51,7 +51,7 @@ def _no_orphans(plan: Plan) -> None:
 NO_ORPHAN_SERVICES: SemanticInvariant[Plan] = SemanticInvariant(
     id="topology.no_orphan_services",
     category=InvariantCategory.TOPOLOGY,
-    statement="Every declared Service is used by at least one Step.",
+    statement="Every declared PlanDependency is used by at least one PlanStep.",
     why=("The other direction, and it is not symmetric decoration. `services` is what a reader "
          "consults to decide where a Plan can run — 'needs a 9.5 GB file on local disk, so it "
          "cannot run on a container app'. A stale entry there does not merely clutter, it argues "

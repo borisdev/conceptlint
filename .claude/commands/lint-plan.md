@@ -39,7 +39,7 @@ This is the part that matters, because silence here has already been read as a c
 - **A subdirectory scan sees less than a whole-repo scan.** A class is only recognised if its base
   class was found in the same run, so linting `libs/foo` alone misses every subclass whose base
   lives elsewhere. If you scanned a subdirectory, say so and say what that hides.
-- **`Step` subclasses are frequently invisible.** They are not Pydantic models, so they only appear
+- **`PlanStep` subclasses are frequently invisible.** They are not Pydantic models, so they only appear
   when their base happens to be discovered first. Check whether any showed up; if the repo declares
   Steps and none appear in the output, report that as NOT CHECKED, not as clean.
 - **A zero count is not automatically good.** `conceptlint <dir>` exiting 0 with no output can mean

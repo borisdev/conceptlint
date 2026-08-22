@@ -13,7 +13,7 @@ being written. One declaration, two demos — which is also the thing the packag
 """
 from __future__ import annotations
 
-from workflow_plan import Plan, Step, Variable
+from workflow_plan import Plan, PlanStep, Variable
 
 numbers = Variable("numbers", list)
 number = Variable("number", int)
@@ -22,14 +22,14 @@ squares = Variable("squares", list)
 total = Variable("total", int)
 
 
-class Square(Step):
+class Square(PlanStep):
     """Theirs, unchanged: one number in, one number out, applied to each item."""
 
     inputs, outputs = (number,), (squared,)
     map_over = (numbers, squares)
 
 
-class Total(Step):
+class Total(PlanStep):
     """Their example stops at the joined list; summing gives us something to eval."""
 
     inputs, outputs = (squares,), (total,)

@@ -74,7 +74,7 @@ jobs:
           fi
 
       # A separate step so a broken CITATION is never mistaken for a failing unit test. This is the
-      # check that did not exist when `Step` cited p-plan#Step while implementing something P-Plan
+      # check that did not exist when `PlanStep` cited p-plan#Step while implementing something P-Plan
       # does not describe.
       - name: Ontology grounding
         run: uv run pytest tests/test_pplan_grounding.py -q

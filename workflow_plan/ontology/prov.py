@@ -1,6 +1,6 @@
 """The EXECUTION graph: what actually happened, as typed nodes and typed edges.
 
-    Plan / Step / Variable      what SHOULD happen   — reusable across thousands of runs
+    Plan / PlanStep / Variable      what SHOULD happen   — reusable across thousands of runs
     Run / Activity / Entity     what DID happen      — instances, with ids
 
 Ported from `nobs.dataflow.model` (nobsmed-v2), renamed onto the P-Plan/PROV-O nouns: `Artifact` ->
@@ -90,9 +90,9 @@ class Entity(Node):
 
 
 class Activity(Node):
-    """One execution of a Step: prov:Activity.
+    """One execution of a PlanStep: prov:Activity.
 
-    ⚠️ Temporal's `Activity` is THIS, not a `Step`. Anyone who maps their Activity onto our Step is
+    ⚠️ Temporal's `Activity` is THIS, not a `PlanStep`. Anyone who maps their Activity onto our PlanStep is
     wrong by exactly one level and has no reason to suspect it.
     """
 

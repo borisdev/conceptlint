@@ -5,10 +5,10 @@ executes it.
 
 The Python package is `workflow_plan`.
 
-**If you also use Pydantic Graph, both libraries export `Step`, and they mean different things.**
+**If you also use Pydantic Graph, both libraries export `PlanStep`, and they mean different things.**
 `pydantic_graph.Step` is an executable node — the decorated function is the implementation.
-`workflow_plan.Step` is a declaration: `p-plan:Step`, an intended operation, as distinct from
-`prov:Activity`, one execution of it. Import as `from workflow_plan import Step as PlanStep` when both
+`workflow_plan.PlanStep` is a declaration: `p-plan:Step`, an intended operation, as distinct from
+`prov:Activity`, one execution of it. Import as `from workflow_plan import PlanStep as PlanStep` when both
 are in scope. (`Edge` collides too, but `workflow_plan`' is internal and not exported.)
 
 LangGraph, Temporal and [Pydantic Graph](https://pydantic.dev/docs/ai/graph/builder/) execute
@@ -31,33 +31,33 @@ uv run pytest -q
 | Type | Meaning | Layer |
 |---|---|---|
 | `Variable[T]` | a named, typed value that flows between steps | plan |
-| `Step` | one operation: which Variables it consumes and produces | plan |
+| `PlanStep` | one operation: which Variables it consumes and produces | plan |
 | `Plan` | a set of Steps; edges are derived from shared Variables | plan |
-| `Service` | something a Step needs reachable (an API, a database, a file) | plan |
-| `MultiStep` | a Plan that is also a Step, for nesting | plan |
-| `Strategy` | a mapping from Step class to the function that implements it | binding |
-| `StepRunner` | protocol for executing one Step; `LocalRunner` is the in-process implementation | execution |
+| `PlanDependency` | something a PlanStep needs reachable (an API, a database, a file) | plan |
+| `MultiStep` | a Plan that is also a PlanStep, for nesting | plan |
+| `Strategy` | a mapping from PlanStep class to the function that implements it | binding |
+| `StepRunner` | protocol for executing one PlanStep; `SequentialRunner` is the in-process implementation | execution |
 | `run(plan, inputs, runner)` | executes a Plan in dependency order | execution |
 
-`Plan`, `Step` and `Variable` are taken from [P-Plan](http://purl.org/net/p-plan#); `Activity`,
+`Plan`, `PlanStep` and `Variable` are taken from [P-Plan](http://purl.org/net/p-plan#); `Activity`,
 `Entity` and `Agent` from [PROV-O](https://www.w3.org/TR/prov-o/).
 
 ## Defining a plan
 
-A Step declares its inputs and outputs. It contains no implementation.
+A PlanStep declares its inputs and outputs. It contains no implementation.
 
 ```python
-from workflow_plan import Plan, Step, Variable, render_mermaid, validate
+from workflow_plan import Plan, PlanStep, Variable, render_mermaid, validate
 from workflow_plan.invariants import topology, typing
 
 document = Variable("document", Document)
 outline  = Variable("outline", Outline)
 summary  = Variable("summary", Summary)
 
-class MakeOutline(Step):
+class MakeOutline(PlanStep):
     inputs, outputs = (document,), (outline,)
 
-class Summarize(Step):
+class Summarize(PlanStep):
     inputs, outputs = (document, outline), (summary,)   # two inputs
 
 plan = Plan(
@@ -97,7 +97,7 @@ Implementations are ordinary functions, associated with Steps by a `Strategy` �
 Parameter names must match the input Variable names, because the runner calls by keyword.
 
 ```python
-from workflow_plan.execution import LocalRunner, check_strategy, run
+from workflow_plan.execution import SequentialRunner, check_strategy, run
 
 def summarize_fast(document: Document, outline: Outline) -> Summary: ...
 def summarize_precise(document: Document, outline: Outline) -> Summary: ...
@@ -106,18 +106,18 @@ fast    = {MakeOutline: outline_by_sentence, Summarize: summarize_fast}
 precise = {MakeOutline: outline_by_sentence, Summarize: summarize_precise}
 
 check_strategy(plan, fast)          # -> () ; reports unbound Steps and signature mismatches
-run(plan, {"document": doc}, LocalRunner(fast))
-run(plan, {"document": doc}, LocalRunner(precise))
+run(plan, {"document": doc}, SequentialRunner(fast))
+run(plan, {"document": doc}, SequentialRunner(precise))
 ```
 
-The same `plan` object serves both. One Step may have several implementations without becoming
+The same `plan` object serves both. One PlanStep may have several implementations without becoming
 several Steps.
 
 `render_mermaid(plan, strategy)` labels each node with its bound implementation.
 
 ## Execution
 
-`LocalRunner` is sequential and in-process: no concurrency, no retries, no durability. An exception
+`SequentialRunner` is sequential and in-process: no concurrency, no retries, no durability. An exception
 propagates.
 
 `to_pydantic_graph(plan, strategy)` compiles the same plan and strategy onto Pydantic Graph:
@@ -133,16 +133,16 @@ result = await graph.run(state={}, inputs={"document": doc})
 
 ## Fan-out
 
-A Step that runs per item declares the list it maps over. `map_over` names the source and collected
+A PlanStep that runs per item declares the list it maps over. `map_over` names the source and collected
 Variables; `inputs`/`outputs` describe one item.
 
 ```python
-class Square(Step):
+class Square(PlanStep):
     inputs, outputs = (number,), (squared,)   # int -> int
     map_over = (numbers, squares)             # list[int] -> list[int]
 ```
 
-Under `LocalRunner` this is a sequential loop. Compiled, it emits Pydantic Graph's `.map()` and
+Under `SequentialRunner` this is a sequential loop. Compiled, it emits Pydantic Graph's `.map()` and
 `join(reduce_list_append)`. The declaration is the same in both cases.
 
 ## Comparison with Pydantic Graph
@@ -151,8 +151,8 @@ Pydantic Graph provides steps, typed execution, edges, branching, map, join, red
 dependency injection, execution and diagram rendering. This library does not reimplement any of
 them; it compiles onto them.
 
-The difference is what a Step is. In Pydantic Graph the decorated function is both the graph node
-and the implementation. Here a Step is a declaration, and implementations are bound separately, so
+The difference is what a PlanStep is. In Pydantic Graph the decorated function is both the graph node
+and the implementation. Here a PlanStep is a declaration, and implementations are bound separately, so
 several are peers rather than one being primary.
 
 [`examples/pydantic_graph_docs/`](examples/pydantic_graph_docs/) contains their documented examples
@@ -168,14 +168,14 @@ uv run python3 -m examples.pydantic_graph_docs.control_no_plan
 
 ### Their `simple_counter.py`, round-tripped
 
-Three values asserted equal: their hand-wired `GraphBuilder`, this plan on `LocalRunner`, and this
+Three values asserted equal: their hand-wired `GraphBuilder`, this plan on `SequentialRunner`, and this
 plan compiled onto their runtime. All `2`.
 
 One difference is structural rather than stylistic. Their `increment` declares its input type as
 `None` and reads and writes `ctx.state.value`. The dependency exists but does not appear in the
 graph. Here the same value is an edge: `Increment --count--> DoubleIt`.
 
-### Three implementations of one Step
+### Three implementations of one PlanStep
 
 One `Plan` object, three dict entries:
 
@@ -274,7 +274,7 @@ checked vocabulary, not a serialization format.
 
 `p-plan:Step` is an intended operation; `prov:Activity` is one execution of it. The library keeps
 them distinct even where a runtime maps them one to one. Temporal's `Activity` is `prov:Activity`,
-not a `Step`.
+not a `PlanStep`.
 
 `workflow_plan.ontology` holds the PROV-O side as Pydantic models — `Entity`, `Activity`, `Agent`, and
 `Run` (`prov:Bundle`, one execution of a Plan, with validated referential integrity between its
@@ -284,7 +284,7 @@ document from an execution is a feature these types were written for and it is n
 ## Limitations
 
 **Works today:** typed Plans, the four invariant categories, `render_mermaid`, `Strategy`,
-`check_strategy`, `LocalRunner`, `map_over` fan-out, and `to_pydantic_graph`. 159 tests.
+`check_strategy`, `SequentialRunner`, `map_over` fan-out, and `to_pydantic_graph`. 159 tests.
 
 **Not built:** Temporal and LangGraph adapters, RDF import/export, persistence, retries, scheduling,
 concurrency, an async `StepRunner`, embedding-based similarity, and agent-hook integration.
@@ -297,7 +297,7 @@ Specific constraints:
   declares an iterative region; collapsing a strongly connected component into one is not
   implemented.
 - **`Fork` and `Join` are not first-class.** Only `map_over`.
-- **`LocalRunner` is synchronous** and rejects an `async def` implementation rather than returning
+- **`SequentialRunner` is synchronous** and rejects an `async def` implementation rather than returning
   an un-awaited coroutine. A compiled graph awaits it normally.
 - **At one implementation the plan layer is overhead.** With a single arm and two steps it costs a
   declaration and provides nothing. It becomes useful at the second arm or the second reader.
@@ -325,7 +325,7 @@ introduces a Pydantic model duplicating an existing one:
 Use the `args` exec form. With a shell string, `2>/dev/null` discards the message and `|| true`
 masks the exit code, either of which leaves a hook that runs and reports nothing.
 
-Limits: it fires only on new Pydantic models, not on `Step` subclasses; it exits 2 on a violation
+Limits: it fires only on new Pydantic models, not on `PlanStep` subclasses; it exits 2 on a violation
 and 0 on any error, so it never blocks work for an unrelated reason.
 
 `/lint-plan` ([`.claude/commands/lint-plan.md`](.claude/commands/lint-plan.md)) runs conceptlint

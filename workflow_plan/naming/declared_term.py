@@ -36,7 +36,7 @@ class DeclaredTerm:
     Not a Pydantic model and never instantiated on its own account: a DeclaredTerm is read as a
     DECLARATION, including by AST off disk before the module can import. It carries no `__init__`,
     no fields and no methods, so a frozen dataclass or a `Generic` can inherit it without acquiring
-    behaviour it did not ask for — which is what lets `Plan`, `Variable` and `Service` keep being
+    behaviour it did not ask for — which is what lets `Plan`, `Variable` and `PlanDependency` keep being
     exactly the dataclasses they already were.
     """
 
@@ -68,7 +68,7 @@ class DeclaredTerm:
     #:
     #: Recording a retired synonym is how a dead word stays dead: the lint can say "you wrote
     #: `DataFlowNode`, that meaning is `PlanStep`" instead of silently accepting a second
-    #: vocabulary. It is why `PlanStep.ALSO_KNOWN_AS` lists `"Step"` — the rename does not make the
+    #: vocabulary. It is why `PlanStep.ALSO_KNOWN_AS` lists `"PlanStep"` — the rename does not make the
     #: old word available to something else.
     ALSO_KNOWN_AS: ClassVar[tuple[str, ...]] = ()
 
@@ -82,7 +82,7 @@ def declared(root: type[DeclaredTerm] = DeclaredTerm) -> list[type[DeclaredTerm]
 
     ⚠️ `ID` is read from the class's OWN `__dict__`, never inherited, and that is what makes this
     safe to put under `PlanStep`. `ID` is a ClassVar, so `class Square(PlanStep)` inherits
-    `ID = "step"` for free — and every user Step in every example would then arrive here claiming
+    `ID = "step"` for free — and every user PlanStep in every example would then arrive here claiming
     the same wire tag, which `Ambiguity` reports as "the tag 'step' is claimed by N terms". The
     finding would be real given the input and useless given the intent. A declaration is something
     you WRITE; subclassing a declared term is using it.

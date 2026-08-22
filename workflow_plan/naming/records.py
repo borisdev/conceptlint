@@ -398,7 +398,7 @@ def overloaded_terms(models: Sequence[ModelRecord]) -> dict[str, list[ModelRecor
     needs 'by X here I mean…', that is a missing type"* — and then says no tool can check it. This
     is the index that lets one try:
 
-        {"workflow": [Plan], "step": [Step, BuildStep], "run": [Activity, EvalRun, BuildRun]}
+        {"workflow": [Plan], "step": [PlanStep, BuildStep], "run": [Activity, EvalRun, BuildRun]}
 
     A term maps to a model by its NAME or by a recorded alias. Nothing here is inferred: an alias is
     written down by a person deciding a word is retired or synonymous, which is the one thing

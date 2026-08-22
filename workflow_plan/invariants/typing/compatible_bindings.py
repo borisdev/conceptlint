@@ -34,7 +34,7 @@ def _compatible(plan: Plan) -> None:
         for n, vs in sorted(clashes.items()))
     raise COMPATIBLE_BINDINGS.violated(
         f"{detail}. Two Variables sharing a name but not a type look connected and are not — "
-        f"nothing flows between them, and the Step that expected a value gets none.")
+        f"nothing flows between them, and the PlanStep that expected a value gets none.")
 
 
 COMPATIBLE_BINDINGS: SemanticInvariant[Plan] = SemanticInvariant(
@@ -50,7 +50,7 @@ COMPATIBLE_BINDINGS: SemanticInvariant[Plan] = SemanticInvariant(
 
 
 def _declared_shapes_line_up(plan: Plan) -> None:
-    """Every Step's declared inputs/outputs are Variables, with no duplicate names per side."""
+    """Every PlanStep's declared inputs/outputs are Variables, with no duplicate names per side."""
     bad: list[str] = []
     for s in plan.steps:
         for side in ("inputs", "outputs"):
@@ -65,7 +65,7 @@ def _declared_shapes_line_up(plan: Plan) -> None:
 DECLARED_SHAPES: SemanticInvariant[Plan] = SemanticInvariant(
     id="typing.declared_shapes",
     category=InvariantCategory.TYPING,
-    statement="No Step declares the same Variable name twice on one side.",
+    statement="No PlanStep declares the same Variable name twice on one side.",
     why=("A duplicate name on one side makes the binding ambiguous, and the ambiguity surfaces as "
          "the wrong value arriving rather than as an error — the hardest shape of bug to trace "
          "back to its declaration."),

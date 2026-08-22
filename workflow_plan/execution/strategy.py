@@ -1,6 +1,6 @@
-"""`Strategy` — which implementation performs each Step, for one execution.
+"""`Strategy` — which implementation performs each PlanStep, for one execution.
 
-    Step        WHAT transformation exists          plan-time, declared once
+    PlanStep        WHAT transformation exists          plan-time, declared once
     Strategy    HOW it is performed, this time      chosen per execution
     StepRunner  the mechanics of performing it      sync, retries, durability, workers
 
@@ -17,18 +17,18 @@ changed*, and mean it, because the same `Plan` object served both arms.
 
 `workflow_plan.plan.bindings` means **how Variables connect Steps**: two Steps are bound when they
 share a `Variable`. The handoffs that produced this module used "bindings" for **which
-implementation satisfies a Step**. Two concepts, one word, in one package — the exact thing
+implementation satisfies a PlanStep**. Two concepts, one word, in one package — the exact thing
 `naming.ambiguous_reference` reports, and it would have shipped inside the module built to prevent
 it.
 
     binding     Variable wiring         workflow_plan/plan/bindings.py
-    Strategy    Step -> implementation  here
+    Strategy    PlanStep -> implementation  here
 
 ## Grounding, stated plainly
 
 P-Plan has no term for this, and neither does PROV-O. `p-plan:Step` is the intended operation and
-`prov:Activity` is one execution of it; *"the code that will perform this Step if it runs"* is
-neither. So `Strategy` is **ours, deliberately uncited** — the same call as `Step.uses`, and for the
+`prov:Activity` is one execution of it; *"the code that will perform this PlanStep if it runs"* is
+neither. So `Strategy` is **ours, deliberately uncited** — the same call as `PlanStep.uses`, and for the
 same reason: citing a term that does not say this would be the failure
 `provenance.grounded_citation` exists to catch.
 """
@@ -38,19 +38,19 @@ import inspect
 from typing import Any, Callable, Mapping
 
 from workflow_plan.plan.plan import Plan
-from workflow_plan.plan.step import Step
+from workflow_plan.plan.plan_step import PlanStep
 
-#: One way of performing a Step. Called by keyword with the Step's input Variable NAMES.
+#: One way of performing a PlanStep. Called by keyword with the PlanStep's input Variable NAMES.
 Implementation = Callable[..., Any]
 
-#: Step class -> the implementation that performs it. Keyed on the CLASS, since the class is the
-#: declared operation; a Plan holding two instances of one Step class cannot give them different
+#: PlanStep class -> the implementation that performs it. Keyed on the CLASS, since the class is the
+#: declared operation; a Plan holding two instances of one PlanStep class cannot give them different
 #: implementations, which has not been needed and is recorded here rather than designed around.
-Strategy = Mapping[type[Step], Implementation]
+Strategy = Mapping[type[PlanStep], Implementation]
 
 
 def check_strategy(plan: Plan, strategy: Strategy) -> tuple[str, ...]:
-    """Findings about a Strategy against a Plan. Empty means every Step can be called.
+    """Findings about a Strategy against a Plan. Empty means every PlanStep can be called.
 
     Static, and honest about its limits: it reads signatures, so it can tell you that
     `summarize(doc)` will not accept the keyword `document`, and it CANNOT tell you what that
@@ -66,7 +66,7 @@ def check_strategy(plan: Plan, strategy: Strategy) -> tuple[str, ...]:
         impl = strategy.get(cls)
         if impl is None:
             violations.append(
-                f"{cls.__name__} has no implementation in this Strategy. A Step is a declaration; "
+                f"{cls.__name__} has no implementation in this Strategy. A PlanStep is a declaration; "
                 f"something has to say how it is performed.")
             continue
         if not callable(impl):
@@ -82,16 +82,16 @@ def check_strategy(plan: Plan, strategy: Strategy) -> tuple[str, ...]:
     return tuple(violations)
 
 
-def _signature_findings(cls: type[Step], impl: Implementation) -> list[str]:
+def _signature_findings(cls: type[PlanStep], impl: Implementation) -> list[str]:
     """Can `impl(**{name: value for each of cls.inputs})` actually be called?
 
     ⚠️ This is where `Variable.name` stops being a label and becomes part of the contract. The
-    runner calls by KEYWORD — a Step with three inputs called positionally is one argument reorder
+    runner calls by KEYWORD — a PlanStep with three inputs called positionally is one argument reorder
     away from a silent mis-wire that the types cannot catch when two inputs share a type. The cost
     is that renaming a Variable renames a parameter, and that cost is deliberate: it is visible
     here, at import, rather than at 3am as a value in the wrong slot.
     """
-    # `cls.inputs` deliberately, not the wired ports: a mapped Step's implementation is called
+    # `cls.inputs` deliberately, not the wired ports: a mapped PlanStep's implementation is called
     # with ONE ITEM, so its parameter is the item's name. The list never reaches it.
     wanted = [v.name for v in cls.inputs]
     try:
@@ -122,7 +122,7 @@ def _signature_findings(cls: type[Step], impl: Implementation) -> list[str]:
     if unfed:
         violations.append(
             f"{_name(impl)}{sig} requires {unfed}, which {cls.__name__} does not declare as an "
-            f"input. Either it is a Variable the Step should consume — in which case the Plan is "
+            f"input. Either it is a Variable the PlanStep should consume — in which case the Plan is "
             f"missing an edge — or it is a dependency, which belongs in the implementation's "
             f"closure, not in the dataflow.")
     return violations

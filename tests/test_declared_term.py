@@ -11,14 +11,14 @@ import pathlib
 import workflow_plan.plan  # noqa: F401 — importing is what declares them
 from workflow_plan.naming.declared_term import DeclaredTerm, declared
 from workflow_plan.naming.records import MODEL_BASES, discover_models
-from workflow_plan.plan import MultiStep, Plan, Service, Step, Variable
+from workflow_plan.plan import MultiStep, Plan, PlanDependency, PlanStep, Variable
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
 def test_the_five_core_types_are_declared_terms():
     """The point of the pass: one base, filled, instead of `ONTOLOGY_IRI` on each class ad hoc."""
-    for cls in (Plan, Step, Variable, Service, MultiStep):
+    for cls in (Plan, PlanStep, Variable, PlanDependency, MultiStep):
         assert issubclass(cls, DeclaredTerm), cls.__name__
         assert cls.ID, f"{cls.__name__} declares no ID"
         assert cls.DEFINITION, f"{cls.__name__} declares no DEFINITION"
@@ -43,17 +43,17 @@ def test_every_id_this_package_declares_is_unique():
 def test_subclassing_a_declared_term_does_not_declare_a_second_one():
     """⚠️ The failure that made `declared()` read `__dict__` instead of the attribute.
 
-    `ID` is a ClassVar, so `class Square(Step)` inherits `ID = "step"` for free. Reading the
-    inherited value, every user Step in every example arrives claiming the same wire tag, and
+    `ID` is a ClassVar, so `class Square(PlanStep)` inherits `ID = "step"` for free. Reading the
+    inherited value, every user PlanStep in every example arrives claiming the same wire tag, and
     `Ambiguity` reports "the tag 'step' is claimed by N terms" — a finding that is true of the
     input and useless as advice. Declaring is something you WRITE; subclassing is using.
     """
-    class Square(Step):
+    class Square(PlanStep):
         pass
 
     assert Square.ID == "step", "inheritance still carries the value — that part is intended"
     assert Square not in declared(), "an undeclared subclass must not enter the vocabulary"
-    assert Step in declared()
+    assert PlanStep in declared()
 
 
 def test_discovery_of_our_own_base_does_not_depend_on_file_order():
@@ -75,9 +75,9 @@ def test_discovery_of_our_own_base_does_not_depend_on_file_order():
 def test_multistep_refines_the_word_it_reuses():
     """`REFINES` is the escape hatch for the naming laws, so it points at the reused WORD.
 
-    `MultiStep` is `rdfs:subClassOf` both Plan and Step. Pointing REFINES at `Plan` is true and
-    silences nothing: `canonical-reuse` still fires on the name containing `Step`. A documented fix
+    `MultiStep` is `rdfs:subClassOf` both Plan and PlanStep. Pointing REFINES at `Plan` is true and
+    silences nothing: `canonical-reuse` still fires on the name containing `PlanStep`. A documented fix
     that does not silence the finding teaches people the tool is broken.
     """
-    assert MultiStep.REFINES is Step
+    assert MultiStep.REFINES is PlanStep
     assert issubclass(MultiStep, Plan), "the Plan relation is carried by the Python base"

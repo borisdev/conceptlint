@@ -7,7 +7,7 @@ does not want to be one: LangGraph, Temporal and Pydantic Graph execute workflow
 at it. What is missing is the layer where you decide whether the process is RIGHT — before retries,
 workers, state and serialization are in the room — and then hand it to one of them unchanged.
 
-So the same `Plan` and the same `Strategy` run under `LocalRunner` while you are still arguing about
+So the same `Plan` and the same `Strategy` run under `SequentialRunner` while you are still arguing about
 the shape, and under Pydantic Graph when you want its runtime. Neither the Plan nor any
 implementation is edited in between. `examples/pydantic_graph_demo/` runs both and asserts the
 results are identical, because a claim like that one has to be executable.
@@ -18,8 +18,8 @@ Steps in `execution_order`, chained, threading a dict of Variable-name -> value:
 
     start --> step_0 --> step_1 --> ... --> end
 
-Each compiled node calls the SAME `Strategy` implementation `LocalRunner` would call, through the
-same `_outputs_by_name`, so a Step cannot behave differently on the two runtimes.
+Each compiled node calls the SAME `Strategy` implementation `SequentialRunner` would call, through the
+same `_outputs_by_name`, so a PlanStep cannot behave differently on the two runtimes.
 
 ## What it deliberately does NOT do yet
 
@@ -33,12 +33,12 @@ graph, the vending machine, the email-feedback loop — are cyclic state machine
 is exactly the case where you SHOULD reach for that engine. workflow-plan says so instead of pretending
 to run it.
 
-**No state or deps.** `state_type` and `deps_type` stay `None`. A Step implementation's
+**No state or deps.** `state_type` and `deps_type` stay `None`. A PlanStep implementation's
 dependencies live in its closure — see `strategy.py`.
 
-## On the two `Step` classes
+## On the two `PlanStep` classes
 
-`pydantic_graph.Step` and `workflow_plan.Step` are different things and both are correctly named:
+`pydantic_graph.Step` and `workflow_plan.PlanStep` are different things and both are correctly named:
 theirs is an executable node, ours is a declaration — `p-plan:Step` against, in effect,
 `prov:Activity`. This module is the one place both are in scope, and it never imports theirs.
 """
@@ -58,7 +58,7 @@ if TYPE_CHECKING:  # pragma: no cover
 def to_pydantic_graph(plan: Plan, strategy: Strategy, *, name: str | None = None) -> "Graph":
     """Build a `pydantic_graph.Graph` that runs `plan` under `strategy`.
 
-    Raises BEFORE building rather than mid-run: an unbound Step or an uncallable signature is a fact
+    Raises BEFORE building rather than mid-run: an unbound PlanStep or an uncallable signature is a fact
     about the Strategy, and discovering it inside a graph run would attribute it to the runtime.
 
     ## Shape of the compiled graph
@@ -69,13 +69,13 @@ def to_pydantic_graph(plan: Plan, strategy: Strategy, *, name: str | None = None
 
         seed ──> step ──> step ──> ... ──> finish ──> end
 
-    A MAPPED Step compiles to their four-part fan-out, using their primitives, not a loop wearing
+    A MAPPED PlanStep compiles to their four-part fan-out, using their primitives, not a loop wearing
     their name:
 
         emit ──.map()──> <per-item step> ──> join(reduce_list_append) ──> store
 
     So a Plan that declares `map_over` becomes an actually-parallel map on their engine, and the
-    same declaration is a sequential loop under `LocalRunner`. That is the split working: the Plan
+    same declaration is a sequential loop under `SequentialRunner`. That is the split working: the Plan
     says a fan-out exists; how many workers run it is the runtime's business.
     """
     try:
@@ -132,9 +132,9 @@ def to_pydantic_graph(plan: Plan, strategy: Strategy, *, name: str | None = None
 
 
 def _plain(cls: Any, impl: Any, i: int) -> Any:
-    """An ordinary Step: read its inputs from state, write its outputs back.
+    """An ordinary PlanStep: read its inputs from state, write its outputs back.
 
-    Calls the same `_outputs_by_name` `LocalRunner` does, so a Step cannot mean one thing here and
+    Calls the same `_outputs_by_name` `SequentialRunner` does, so a PlanStep cannot mean one thing here and
     another there — a second copy of that logic is a second thing to drift.
     """
     async def run_step(ctx: Any) -> None:
@@ -147,7 +147,7 @@ def _plain(cls: Any, impl: Any, i: int) -> Any:
                 f"validate(plan, topology.ALL) reports it before you compile.")
         result = impl(**{v.name: env[v.name] for v in cls.inputs})
         if hasattr(result, "__await__"):
-            result = await result  # async IS fine here — a graph run awaits. LocalRunner cannot.
+            result = await result  # async IS fine here — a graph run awaits. SequentialRunner cannot.
         env.update(_outputs_by_name(cls, result))
 
     run_step.__name__ = f"{cls.__name__}_{i}"
@@ -158,7 +158,7 @@ def _mapped(g: Any, cls: Any, impl: Any, i: int) -> tuple[Any, Any, Any]:
     """`emit -> .map() -> per_item -> join -> store`, in their vocabulary.
 
     `emit` puts the list on the edge, because `.map()` fans out an EDGE's value and our environment
-    lives in state. `store` puts the joined list back. Neither is a Step in the Plan — they are the
+    lives in state. `store` puts the joined list back. Neither is a PlanStep in the Plan — they are the
     seam between our environment and their edges, and they exist because the two models differ, not
     because the Plan has extra nodes in it.
     """

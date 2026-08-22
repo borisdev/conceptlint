@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from workflow_plan import Plan, Step, Variable, render_mermaid, validate
+from workflow_plan import Plan, PlanStep, Variable, render_mermaid, validate
 from workflow_plan.invariants import topology, typing as typing_inv
 from workflow_plan.plan import bindings
 from workflow_plan.plan.plan import MultiStep, PlanError
@@ -26,11 +26,11 @@ FINDINGS = Variable("findings", Findings)
 SUMMARY = Variable("summary", Summary)
 
 
-class Extract(Step):
+class Extract(PlanStep):
     inputs, outputs = (PAPER,), (FINDINGS,)
 
 
-class SummarizePaper(Step):
+class SummarizePaper(PlanStep):
     """Fans in: needs the paper AND the findings."""
 
     inputs, outputs = (PAPER, FINDINGS), (SUMMARY,)
@@ -77,7 +77,7 @@ def test_a_runtime_object_among_plan_time_declarations_is_refused() -> None:
     class FakeActivity:
         started_at = "10:04"
 
-    with pytest.raises(PlanError, match="not a Step"):
+    with pytest.raises(PlanError, match="not a PlanStep"):
         Plan(name="leaky", steps=(Extract(), FakeActivity()))  # type: ignore[arg-type]
 
 
@@ -92,10 +92,10 @@ def test_a_cyclic_plan_can_be_CONSTRUCTED() -> None:
     """
     A, B = Variable("a", int), Variable("b", int)
 
-    class Ping(Step):
+    class Ping(PlanStep):
         inputs, outputs = (B,), (A,)
 
-    class Pong(Step):
+    class Pong(PlanStep):
         inputs, outputs = (A,), (B,)
 
     plan = Plan(name="loop", steps=(Ping(), Pong()))   # must NOT raise
@@ -106,10 +106,10 @@ def test_the_acyclic_invariant_reports_that_same_cycle() -> None:
     """Legal to build, checkable when you want it — which is the whole distinction."""
     A, B = Variable("a", int), Variable("b", int)
 
-    class Ping(Step):
+    class Ping(PlanStep):
         inputs, outputs = (B,), (A,)
 
-    class Pong(Step):
+    class Pong(PlanStep):
         inputs, outputs = (A,), (B,)
 
     found = validate(Plan(name="loop", steps=(Ping(), Pong())), [topology.ACYCLIC])
@@ -138,7 +138,7 @@ def test_an_undeclared_plan_reports_NOT_CHECKED_rather_than_passing() -> None:
 def test_an_unbound_input_is_reported_once_inputs_are_declared() -> None:
     MISSING = Variable("nobody_makes_this", Findings)
 
-    class Needs(Step):
+    class Needs(PlanStep):
         inputs, outputs = (PAPER, MISSING), (SUMMARY,)
 
     plan = Plan(name="gap", steps=(Extract(), Needs()), declared_inputs=(PAPER,))
@@ -154,7 +154,7 @@ def test_a_DECLARED_plan_input_is_NOT_unbound() -> None:
 
 def test_two_producers_for_one_variable_is_reported() -> None:
     """Not our rule — p-plan:isOutputVarOf is an owl:FunctionalProperty."""
-    class AlsoExtract(Step):
+    class AlsoExtract(PlanStep):
         inputs, outputs = (PAPER,), (FINDINGS,)
 
     found = validate(Plan(name="dup", steps=(Extract(), AlsoExtract(), SummarizePaper())),
@@ -168,7 +168,7 @@ def test_same_name_different_type_is_reported() -> None:
     """Looks like a binding in the diagram and in the reading; moves nothing."""
     WRONG = Variable("findings", str)
 
-    class Mismatched(Step):
+    class Mismatched(PlanStep):
         inputs, outputs = (WRONG,), (SUMMARY,)
 
     found = validate(Plan(name="clash", steps=(Extract(), Mismatched())),
@@ -182,10 +182,10 @@ def test_validate_returns_every_violation() -> None:
     """One cycle can cause several findings, and seeing them all is how you spot one root cause."""
     A, B = Variable("a", int), Variable("b", int)
 
-    class Ping(Step):
+    class Ping(PlanStep):
         inputs, outputs = (B,), (A,)
 
-    class Pong(Step):
+    class Pong(PlanStep):
         inputs, outputs = (A,), (B,)
 
     found = validate(Plan(name="loop", steps=(Ping(), Pong())), topology.ALL)
@@ -210,7 +210,7 @@ def test_the_diagram_is_deterministic() -> None:
 def test_adding_an_input_changes_the_picture_with_no_edit_to_the_renderer() -> None:
     before = render_mermaid(a_plan()).count("-->")
 
-    class SummarizeWithExtra(Step):
+    class SummarizeWithExtra(PlanStep):
         inputs, outputs = (PAPER, FINDINGS, Variable("style", str)), (SUMMARY,)
 
     after = render_mermaid(Plan(name="extract_and_summarize",
@@ -219,13 +219,13 @@ def test_adding_an_input_changes_the_picture_with_no_edit_to_the_renderer() -> N
 
 
 def test_the_label_splitter_handles_runs_of_capitals() -> None:
-    class PICOSetBuilder(Step):
+    class PICOSetBuilder(PlanStep):
         inputs, outputs = (PAPER,), (SUMMARY,)
 
     assert "PICO Set Builder" in render_mermaid(Plan(name="p", steps=(PICOSetBuilder(),)))
 
 
-# ── p-plan:MultiStep — a Plan that is also a Step ────────────────────────────────────────────────
+# ── p-plan:MultiStep — a Plan that is also a PlanStep ────────────────────────────────────────────────
 
 def test_multistep_is_both_a_plan_and_decomposable() -> None:
     ms = MultiStep(name="inner", steps=(Extract(), SummarizePaper()))
@@ -281,12 +281,12 @@ def test_the_readme_does_not_claim_unbuilt_integrations() -> None:
             f"{unbuilt} is not implemented; Status must say so")
 
 
-# --- MultiStep: a Plan that is also a Step -------------------------------------------------------
+# --- MultiStep: a Plan that is also a PlanStep -------------------------------------------------------
 
 def test_a_multistep_can_actually_be_a_step() -> None:
     """It could not until 2026-08-20 — the one thing the class exists for.
 
-    It subclassed Plan alone, so `Plan.__post_init__`'s isinstance(s, Step) check rejected it. The
+    It subclassed Plan alone, so `Plan.__post_init__`'s isinstance(s, PlanStep) check rejected it. The
     ontology citation said rdfs:subClassOf BOTH; the code implemented one. Nothing caught it
     because nothing had ever nested a Plan.
     """
@@ -294,17 +294,17 @@ def test_a_multistep_can_actually_be_a_step() -> None:
 
     a, b, c = Variable("a", str), Variable("b", str), Variable("c", str)
 
-    class In1(Step):
+    class In1(PlanStep):
         inputs, outputs = (a,), (b,)
 
-    class In2(Step):
+    class In2(PlanStep):
         inputs, outputs = (b,), (c,)
 
-    class After(Step):
+    class After(PlanStep):
         inputs, outputs = (c,), (Variable("d", str),)
 
     nested = MultiStep(name="inner", steps=(In1(), In2()))
-    assert isinstance(nested, Step)
+    assert isinstance(nested, PlanStep)
 
     outer = Plan(name="outer", steps=(nested, After()))
     assert len(outer.steps) == 2
@@ -320,10 +320,10 @@ def test_a_multistep_knows_whether_its_inner_plan_iterates() -> None:
 
     draft, critique = Variable("draft", str), Variable("critique", str)
 
-    class Write(Step):
+    class Write(PlanStep):
         inputs, outputs = (critique,), (draft,)
 
-    class Review(Step):
+    class Review(PlanStep):
         inputs, outputs = (draft,), (critique,)
 
     loop = MultiStep(name="revise", steps=(Write(), Review()), until=critique)
