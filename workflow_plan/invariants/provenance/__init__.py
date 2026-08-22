@@ -3,7 +3,7 @@
     grounded_citation    reads declared MODELS      Sequence[ModelRecord]
     measured_duration    reads a run's ACTIVITIES   Sequence[Activity]
 
-`validate(subject, invariants)` hands one subject to every rule it is given, so a union of these two
+`check(subject, invariants)` hands one subject to every rule it is given, so a union of these two
 is a list nobody can pass anywhere. Building one anyway was the first thing tried here and it broke
 `test_this_packages_own_citations_resolve` immediately — the duration rule received ModelRecords.
 

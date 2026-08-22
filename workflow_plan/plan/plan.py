@@ -30,7 +30,7 @@ The first milestone is an **inspectable, validated specification**, not an execu
     how Variables are bound     bindings.producers / consumers / edges
     what topology results       bindings.edges
     which invariants apply      whichever the caller runs
-    does it satisfy them        validate(plan, invariants)
+    does it satisfy them        check(plan, invariants)
 
 An execution adapter — plain Python, Temporal, LangGraph — wraps Steps from outside. Never the
 reverse: `@activity.defn` on a PlanStep subclass couples a process definition to one runtime, which is

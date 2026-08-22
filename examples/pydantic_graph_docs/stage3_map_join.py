@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import asyncio
 
-from workflow_plan import Plan, PlanStep, Variable, render_mermaid, validate
+from workflow_plan import Plan, PlanStep, Variable, render_mermaid, check
 from workflow_plan.execution import SequentialRunner, check_strategy, run
 from workflow_plan.execution.pydantic_graph import to_pydantic_graph
 from workflow_plan.invariants import topology, typing
@@ -40,7 +40,7 @@ __all__ = ["ARMS", "CORPUS", "Square", "Total", "numbers", "plan", "squares"]
 
 
 async def main() -> None:
-    print("invariants:", validate(plan, [*topology.ALL, *typing.ALL]) or "[]")
+    print("invariants:", check(plan, [*topology.ALL, *typing.ALL]) or "[]")
     print(render_mermaid(plan, ARMS["exact"]))
 
     print("\nTHEIR DOCS' OWN CASE — inputs=[1, 2, 3, 4, 5]\n")

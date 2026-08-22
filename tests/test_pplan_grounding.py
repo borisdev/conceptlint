@@ -207,31 +207,31 @@ def test_we_model_multistep():
 
 
 def test_grounded_citation_reports_a_term_that_does_not_exist():
-    from workflow_plan.invariants import validate
+    from workflow_plan.invariants import check
     from workflow_plan.invariants.provenance import ALL as PROV
     from workflow_plan.naming.records import ModelRecord
 
     fake = ModelRecord(name="Fabricated", docstring="", fields=(), bases=(), file="f.py", line=1,
                        ontology_iri="http://purl.org/net/p-plan#Workflow")
-    found = validate([fake], PROV)
+    found = check([fake], PROV)
     assert found and "not a term" in found[0].message
 
 
 def test_an_unvendored_ontology_is_reported_not_silently_passed():
     """"We cannot check this" and "this is fine" must never render the same."""
-    from workflow_plan.invariants import validate
+    from workflow_plan.invariants import check
     from workflow_plan.invariants.provenance import ALL as PROV
     from workflow_plan.naming.records import ModelRecord
 
     elsewhere = ModelRecord(name="Elsewhere", docstring="", fields=(), bases=(), file="f.py",
                             line=1, ontology_iri="http://schema.org/Thing")
-    found = validate([elsewhere], PROV)
+    found = check([elsewhere], PROV)
     assert found and "not vendored" in found[0].message
 
 
 def test_this_packages_own_citations_resolve():
     """The shipped vocabulary, checked against the shipped ontologies."""
-    from workflow_plan.invariants import validate
+    from workflow_plan.invariants import check
     from workflow_plan.invariants.provenance import ALL as PROV
     import workflow_plan.plan  # noqa: F401 — the declarations must be imported to be declared
     from workflow_plan.naming.declared_term import declared
@@ -241,7 +241,7 @@ def test_this_packages_own_citations_resolve():
                          ontology_iri=c.ONTOLOGY_IRI)
              for c in declared()]
     assert [c.ontology_iri for c in cited if c.ontology_iri], "nothing cites — guard checks nothing"
-    assert validate(cited, PROV) == []
+    assert check(cited, PROV) == []
 
 
 def test_both_vendored_ontologies_parse_to_real_terms():

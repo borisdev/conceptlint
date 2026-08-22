@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import asyncio
 
-from workflow_plan import Plan, PlanStep, Variable, render_mermaid, validate
+from workflow_plan import Plan, PlanStep, Variable, render_mermaid, check
 from workflow_plan.execution import SequentialRunner, check_strategy, run
 from workflow_plan.execution.pydantic_graph import to_pydantic_graph
 from workflow_plan.invariants import topology, typing
@@ -34,7 +34,7 @@ CORPUS = [[1, 2, 3], [4, 5], [12], [3, 20]]
 
 
 async def main() -> None:
-    print("invariants:", validate(plan, [*topology.ALL, *typing.ALL]) or "[]")
+    print("invariants:", check(plan, [*topology.ALL, *typing.ALL]) or "[]")
 
     print("\nSAME PLAN, THREE STRATEGIES — identical topology, different labels:\n")
     for arm, strategy in ARMS.items():

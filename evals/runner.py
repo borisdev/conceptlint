@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from workflow_plan.naming.declared_term import DeclaredTerm
 from conceptlint.core.invariant import ConceptIssue
 from conceptlint.core.lint import lint
-from workflow_plan.invariants import validate
+from workflow_plan.invariants import check
 from workflow_plan.invariants.typing.plan_time_only import PLAN_TIME_ONLY
 from workflow_plan.naming.records import discover_models
 from workflow_plan.plan import MultiStep, Plan, PlanDependency, PlanStep, Variable
@@ -161,7 +161,7 @@ def _lint_file(path: pathlib.Path) -> list[ConceptIssue]:
     """
     issues = list(lint(SEED + _concepts_declared_in(path)))
     issues += [ConceptIssue(v.invariant_id, v.message)
-               for v in validate(discover_models(path), (PLAN_TIME_ONLY,))]
+               for v in check(discover_models(path), (PLAN_TIME_ONLY,))]
     return issues
 
 

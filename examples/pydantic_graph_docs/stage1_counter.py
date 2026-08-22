@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
-from workflow_plan import Plan, PlanStep, Variable, render_mermaid, validate
+from workflow_plan import Plan, PlanStep, Variable, render_mermaid, check
 from workflow_plan.execution import SequentialRunner, run
 from workflow_plan.execution.pydantic_graph import to_pydantic_graph
 from workflow_plan.invariants import topology, typing
@@ -84,7 +84,7 @@ strategy = {Increment: increment, DoubleIt: double_it}
 
 
 async def main() -> None:
-    print("invariants:", validate(plan, [*topology.ALL, *typing.ALL]) or "[]")
+    print("invariants:", check(plan, [*topology.ALL, *typing.ALL]) or "[]")
     print(render_mermaid(plan))
 
     theirs = await their_version()

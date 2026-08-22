@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from workflow_plan import Plan, PlanStep, Variable, render_mermaid, validate
+from workflow_plan import Plan, PlanStep, Variable, render_mermaid, check
 from workflow_plan.execution import SequentialRunner, check_strategy, run
 from workflow_plan.invariants import topology, typing
 
@@ -96,7 +96,7 @@ precise = {MakeOutline: outline_by_sentence, Summarize: summarize_precise}
 
 
 def main() -> None:
-    findings = validate(plan, [*topology.ALL, *typing.ALL])
+    findings = check(plan, [*topology.ALL, *typing.ALL])
     print("invariants:", findings or "[]")
     print(render_mermaid(plan))
 

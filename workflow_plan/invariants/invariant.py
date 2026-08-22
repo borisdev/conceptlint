@@ -103,7 +103,7 @@ class SemanticInvariant(Generic[T]):
         return True
 
 
-def validate(subject: T, invariants: Iterable[SemanticInvariant[T]]) -> list[Violation]:
+def check(subject: T, invariants: Iterable[SemanticInvariant[T]]) -> list[Violation]:
     """Run every invariant and COLLECT the failures rather than stopping at the first.
 
     ⚠️ Deliberately not fail-fast. One cycle can cause three violations, and seeing all three is how

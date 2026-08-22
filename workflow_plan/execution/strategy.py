@@ -56,7 +56,7 @@ def check_strategy(plan: Plan, strategy: Strategy) -> tuple[str, ...]:
     `summarize(doc)` will not accept the keyword `document`, and it CANNOT tell you what that
     function returns. Return shape is checked by the runner at execution — see `local.py`.
 
-    ⚠️ Returns violations rather than raising, matching `validate()`: one wrong signature usually
+    ⚠️ Returns violations rather than raising, matching `check()`: one wrong signature usually
     produces several complaints, and seeing all of them is how you tell one root cause from three
     problems.
     """

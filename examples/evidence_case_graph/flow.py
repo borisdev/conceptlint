@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from workflow_plan import Plan, PlanDependency, PlanStep, Variable, render_mermaid, validate
+from workflow_plan import Plan, PlanDependency, PlanStep, Variable, render_mermaid, check
 from workflow_plan.execution import SequentialRunner, check_strategy, run
 from workflow_plan.invariants import topology, typing
 
@@ -98,7 +98,7 @@ with_mechanism = {AskModelForCausalMap: ask_with_mechanism,
 
 
 def main() -> None:
-    print("invariants:", validate(plan, [*topology.ALL, *typing.ALL]) or "[]")
+    print("invariants:", check(plan, [*topology.ALL, *typing.ALL]) or "[]")
     print(render_mermaid(plan))
 
     paste = "Metformin and Spironolactone for PCOS, plus Inositol daily."

@@ -133,7 +133,7 @@ horribly: in a related system, **120 items each swallowing their own exception t
 failure into 120 agreeing votes** — four independent variants all reporting "0 found". Consistency
 reads as signal.
 
-So `validate()` converts an unexpected exception into an explicit `NOT CHECKED — {exc}` finding
+So `check()` converts an unexpected exception into an explicit `NOT CHECKED — {exc}` finding
 rather than dropping it. And it **collects** rather than stopping at the first failure: one cycle
 can cause three findings, and seeing all three is how you tell one root cause from three problems.
 

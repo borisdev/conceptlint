@@ -1,7 +1,7 @@
 """The core the handoff asks for: a typed, inspectable, validated process spec.
 
     plan = Plan(...)
-    validate(plan)
+    check(plan)
     print(render_mermaid(plan))
 
 with no execution framework anywhere in reach.
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from workflow_plan import Plan, PlanStep, Variable, render_mermaid, validate
+from workflow_plan import Plan, PlanStep, Variable, render_mermaid, check
 from workflow_plan.invariants import topology, typing as typing_inv
 from workflow_plan.plan import bindings
 from workflow_plan.plan.plan import MultiStep, PlanError
@@ -112,7 +112,7 @@ def test_the_acyclic_invariant_reports_that_same_cycle() -> None:
     class Pong(PlanStep):
         inputs, outputs = (A,), (B,)
 
-    found = validate(Plan(name="loop", steps=(Ping(), Pong())), [topology.ACYCLIC])
+    found = check(Plan(name="loop", steps=(Ping(), Pong())), [topology.ACYCLIC])
     assert [v.invariant_id for v in found] == ["topology.acyclic"]
 
 
@@ -121,7 +121,7 @@ def test_the_acyclic_invariant_reports_that_same_cycle() -> None:
 def test_a_clean_plan_violates_nothing() -> None:
     """⚠️ BOUND_INPUTS excluded — without `declared_inputs` it reports NOT CHECKED, not a pass."""
     checks = [i for i in (*topology.ALL, *typing_inv.ALL) if i is not topology.BOUND_INPUTS]
-    assert validate(a_plan(), checks) == []
+    assert check(a_plan(), checks) == []
 
 
 def test_an_undeclared_plan_reports_NOT_CHECKED_rather_than_passing() -> None:
@@ -131,7 +131,7 @@ def test_an_undeclared_plan_reports_NOT_CHECKED_rather_than_passing() -> None:
     Plan's own signature are the same set, so the check cannot fire. Reporting a pass there would
     make "we did not look" indistinguishable from "we looked and it was fine".
     """
-    found = validate(a_plan(), [topology.BOUND_INPUTS])
+    found = check(a_plan(), [topology.BOUND_INPUTS])
     assert found and found[0].message.startswith("NOT CHECKED")
 
 
@@ -142,14 +142,14 @@ def test_an_unbound_input_is_reported_once_inputs_are_declared() -> None:
         inputs, outputs = (PAPER, MISSING), (SUMMARY,)
 
     plan = Plan(name="gap", steps=(Extract(), Needs()), declared_inputs=(PAPER,))
-    found = validate(plan, [topology.BOUND_INPUTS])
+    found = check(plan, [topology.BOUND_INPUTS])
     assert found and "nobody_makes_this" in found[0].message
 
 
 def test_a_DECLARED_plan_input_is_NOT_unbound() -> None:
     """The PASS twin. A Plan's own signature must not read as an error."""
     plan = Plan(name="ok", steps=(Extract(), SummarizePaper()), declared_inputs=(PAPER,))
-    assert validate(plan, [topology.BOUND_INPUTS]) == []
+    assert check(plan, [topology.BOUND_INPUTS]) == []
 
 
 def test_two_producers_for_one_variable_is_reported() -> None:
@@ -157,7 +157,7 @@ def test_two_producers_for_one_variable_is_reported() -> None:
     class AlsoExtract(PlanStep):
         inputs, outputs = (PAPER,), (FINDINGS,)
 
-    found = validate(Plan(name="dup", steps=(Extract(), AlsoExtract(), SummarizePaper())),
+    found = check(Plan(name="dup", steps=(Extract(), AlsoExtract(), SummarizePaper())),
                      [topology.SINGLE_PRODUCER])
     assert found and "findings" in found[0].message
 
@@ -171,12 +171,12 @@ def test_same_name_different_type_is_reported() -> None:
     class Mismatched(PlanStep):
         inputs, outputs = (WRONG,), (SUMMARY,)
 
-    found = validate(Plan(name="clash", steps=(Extract(), Mismatched())),
+    found = check(Plan(name="clash", steps=(Extract(), Mismatched())),
                      [typing_inv.COMPATIBLE_BINDINGS])
     assert found and "findings" in found[0].message
 
 
-# ── validate collects, it does not stop at the first ─────────────────────────────────────────────
+# ── check collects, it does not stop at the first ─────────────────────────────────────────────
 
 def test_validate_returns_every_violation() -> None:
     """One cycle can cause several findings, and seeing them all is how you spot one root cause."""
@@ -188,7 +188,7 @@ def test_validate_returns_every_violation() -> None:
     class Pong(PlanStep):
         inputs, outputs = (A,), (B,)
 
-    found = validate(Plan(name="loop", steps=(Ping(), Pong())), topology.ALL)
+    found = check(Plan(name="loop", steps=(Ping(), Pong())), topology.ALL)
     assert len(found) >= 1
     assert all(v.invariant_id.startswith("topology.") for v in found)
 
@@ -236,7 +236,7 @@ def test_multistep_is_both_a_plan_and_decomposable() -> None:
 # --- the README must not lie ---------------------------------------------------------------------
 
 def test_the_readme_example_runs_and_returns_what_it_claims() -> None:
-    """The README asserts `validate(...) → []`. It said that while returning a finding.
+    """The README asserts `check(...) → []`. It said that while returning a finding.
 
     Caught by running it: without `declared_inputs`, `topology.bound_inputs` reports NOT CHECKED,
     so the claimed empty list was wrong. A README whose code does not run is the exact failure this
@@ -248,9 +248,9 @@ def test_the_readme_example_runs_and_returns_what_it_claims() -> None:
 
     readme = (pathlib.Path(__file__).resolve().parents[1] / "README.md").read_text()
     assert "declared_inputs=(document,)" in readme, (
-        "the 60-second example must declare its inputs, or the validate() it claims is wrong")
+        "the 60-second example must declare its inputs, or the check() it claims is wrong")
 
-    assert validate(plan, [*topology.ALL, *typing_inv.ALL]) == [], (
+    assert check(plan, [*topology.ALL, *typing_inv.ALL]) == [], (
         "the README claims this returns []")
 
     # ⚠️ The diagram must be BYTE-IDENTICAL to what the renderer produces. The previous version of
@@ -400,18 +400,18 @@ def test_a_reconstructed_duration_is_reported() -> None:
     so. Two clocks started at different instants do not agree to full float precision."""
     from datetime import datetime, timedelta
 
-    from workflow_plan.invariants import validate
+    from workflow_plan.invariants import check
     from workflow_plan.invariants.provenance import DURATION_ALL
     from workflow_plan.ontology import Activity
 
     t = datetime(2026, 8, 22, 12, 0, 0)
     derived = Activity(id="a", step_name="S", started_at=t, ended_at=t + timedelta(seconds=3),
                        duration_secs=3.0)
-    assert "reconstructed" in str(validate([derived], DURATION_ALL)[0])
+    assert "reconstructed" in str(check([derived], DURATION_ALL)[0])
 
     measured = Activity(id="b", step_name="S", started_at=t, ended_at=t + timedelta(seconds=3),
                         duration_secs=3.0001227)
-    assert validate([measured], DURATION_ALL) == []
+    assert check([measured], DURATION_ALL) == []
 
 
 def test_clock_divergence_is_reported_as_the_finding() -> None:
@@ -419,11 +419,11 @@ def test_clock_divergence_is_reported_as_the_finding() -> None:
     not resolved — which clock to believe depends on deploy history this rule cannot see."""
     from datetime import datetime, timedelta
 
-    from workflow_plan.invariants import validate
+    from workflow_plan.invariants import check
     from workflow_plan.invariants.provenance import DURATION_ALL
     from workflow_plan.ontology import Activity
 
     t = datetime(2026, 8, 22, 12, 0, 0)
     ntp_stepped = Activity(id="a", step_name="S", started_at=t, ended_at=t + timedelta(seconds=40),
                            duration_secs=2.5)
-    assert "disagree" in str(validate([ntp_stepped], DURATION_ALL)[0])
+    assert "disagree" in str(check([ntp_stepped], DURATION_ALL)[0])

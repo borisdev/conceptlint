@@ -47,7 +47,7 @@ uv run pytest -q
 A PlanStep declares its inputs and outputs. It contains no implementation.
 
 ```python
-from workflow_plan import Plan, PlanStep, Variable, render_mermaid, validate
+from workflow_plan import Plan, PlanStep, Variable, render_mermaid, check
 from workflow_plan.invariants import topology, typing
 
 document = Variable("document", Document)
@@ -66,7 +66,7 @@ plan = Plan(
     declared_inputs=(document,),
 )
 
-validate(plan, [*topology.ALL, *typing.ALL])   # -> []
+check(plan, [*topology.ALL, *typing.ALL])   # -> []
 print(plan.shape())                            # -> ((Document,), (Summary,))
 print(render_mermaid(plan))
 ```
@@ -246,7 +246,7 @@ validates and renders with nothing implemented.
 
 ## Invariants
 
-`validate(plan, invariants)` runs a list of `SemanticInvariant`s and returns a list of `Violation`s
+`check(plan, invariants)` runs a list of `SemanticInvariant`s and returns a list of `Violation`s
 rather than raising on the first.
 
 | category | checks |

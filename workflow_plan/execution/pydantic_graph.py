@@ -144,7 +144,7 @@ def _plain(cls: Any, impl: Any, i: int) -> Any:
             raise ExecutionError(
                 f"{cls.__name__} needs {missing}, which nothing upstream produced. On a compiled "
                 f"graph that is a WIRING fault, not a runtime one — "
-                f"validate(plan, topology.ALL) reports it before you compile.")
+                f"check(plan, topology.ALL) reports it before you compile.")
         result = impl(**{v.name: env[v.name] for v in cls.inputs})
         if hasattr(result, "__await__"):
             result = await result  # async IS fine here — a graph run awaits. SequentialRunner cannot.

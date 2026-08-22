@@ -23,7 +23,7 @@ REQUIRED = [
 ]
 
 #: Names re-exported at the top level, so a consumer's import line is one swap.
-REQUIRED_NAMES = ["Plan", "PlanStep", "Variable", "check_arms", "PlanError", "validate",
+REQUIRED_NAMES = ["Plan", "PlanStep", "Variable", "check_arms", "PlanError", "check",
                   "render_mermaid"]
 
 

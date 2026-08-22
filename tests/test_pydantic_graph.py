@@ -151,11 +151,11 @@ def test_a_mapped_step_is_an_ordinary_node_to_every_invariant() -> None:
     Variable must never surface as a Plan port, or every topology rule would need to learn about
     mapping and they would each learn it slightly differently.
     """
-    from workflow_plan import validate
+    from workflow_plan import check
     from workflow_plan.invariants import topology, typing as typing_inv
     from examples.pydantic_graph_docs.stage3_map_join import numbers, plan, squares
 
-    assert validate(plan, [*topology.ALL, *typing_inv.ALL]) == []
+    assert check(plan, [*topology.ALL, *typing_inv.ALL]) == []
     assert [v.name for v in plan.inputs] == ["numbers"]
     assert numbers in plan.variables and squares in plan.variables
     assert "number" not in [v.name for v in plan.variables], "the ITEM is not a Plan port"

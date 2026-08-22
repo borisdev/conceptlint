@@ -5,7 +5,7 @@ and that single mandatory rule is what stops one name meaning three things.
 """
 from __future__ import annotations
 
-from workflow_plan import Plan, PlanDependency, PlanStep, Variable, validate
+from workflow_plan import Plan, PlanDependency, PlanStep, Variable, check
 from workflow_plan.invariants import topology, typing as typing_inv
 
 A = Variable("a", str)
@@ -30,7 +30,7 @@ def test_a_step_may_not_reach_for_an_undeclared_service():
     was not declared at all.
     """
     plan = Plan(name="p", steps=(Retrieves(),), declared_inputs=(A,))
-    findings = validate(plan, [topology.DECLARED_SERVICES])
+    findings = check(plan, [topology.DECLARED_SERVICES])
     assert len(findings) == 1
     assert "pubmed" in str(findings[0])
 
@@ -39,7 +39,7 @@ def test_a_declared_service_nobody_uses_is_reported():
     """Not symmetric decoration. `services` is what a deploy decision reads, so a stale entry
     argues against a deployment that would actually work."""
     plan = Plan(name="p", steps=(Retrieves(),), declared_inputs=(A,), services=(PUBMED, DISK))
-    findings = validate(plan, [topology.NO_ORPHAN_SERVICES])
+    findings = check(plan, [topology.NO_ORPHAN_SERVICES])
     assert len(findings) == 1 and "semmeddb" in str(findings[0])
 
 
@@ -47,7 +47,7 @@ def test_a_plan_with_no_services_is_not_a_finding():
     """Most Plans need nothing reachable. Silence is the pass — a rule that fires on every pure
     Plan would be turned off within a week."""
     plan = Plan(name="pure", steps=(Pure(),), declared_inputs=(A,))
-    assert validate(plan, list(topology.ALL)) == []
+    assert check(plan, list(topology.ALL)) == []
 
 
 def test_services_are_not_variables():
