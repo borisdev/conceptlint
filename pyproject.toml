@@ -1,6 +1,6 @@
 [project]
 name = "workflow-plan"
-version = "0.7.0"
+version = "0.8.0"
 description = "Keeps human-agent development semantically precise, so coherent domain type systems can be built without semantic drift"
 license = "MIT"
 readme = "README.md"
