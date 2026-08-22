@@ -15,7 +15,7 @@ Everything an arm needs to be comparable is on the trial, not repeated per case.
 
 ## What is deliberately absent
 
-`Conduct` and `Capability` — the two ConceptRule flavours in the original — are not here.
+`Conduct` and `Capability` — the two CoherenceRule flavours in the original — are not here.
 `Conduct.__subclasses__()` and `Capability.__subclasses__()` were both EMPTY in the source repo:
 declared, tested against toy classes in their own test file, and never used. §30 asks what concrete
 blocker requires a thing. Nothing did.

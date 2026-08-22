@@ -8,7 +8,11 @@ requires-python = ">=3.12"
 dependencies = ["pydantic>=2.0,<3"]
 
 [project.scripts]
-conceptlint = "conceptlint.core.lint:main"
+workflow-plan = "workflow_plan.cli:main"
+# ⚠️ Retired, and kept as an ERROR rather than removed. A vanished command reads as a broken venv —
+# the old slash command had a whole fallback stanza for "the console script is often missing" — and
+# a working alias would keep a second vocabulary alive. This one names its successor and exits 2.
+conceptlint = "workflow_plan.cli:retired"
 
 [project.optional-dependencies]
 pydantic-graph = [

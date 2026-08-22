@@ -24,7 +24,7 @@ jobs:
             python3 "$GITHUB_WORKSPACE/scripts/check_wheel.py"
 
   test:
-    name: tests + conceptlint on itself
+    name: tests + workflow-plan lint on itself
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,21 +53,28 @@ jobs:
           # --import, or `declared()` returns [] and grounded-citation checks NOTHING while
           # reporting green. Registration is subclassing, so a Concept in an unimported
           # module does not exist — measured: without this the concept list was empty.
-          OUT=$(uv run conceptlint . 2>&1); RC=$?
+          OUT=$(uv run workflow-plan lint . 2>&1); RC=$?
+          # ⚠️ The pattern is ANY unindented `<rule-id>: ` line, not the four category prefixes.
+          # It was `^(naming|typing|topology|provenance)\.[a-z_]+:`, which counted ZERO of the four
+          # core rules — `ambiguity`, `canonical-reuse`, `near-duplicate`, `explicit-refinement` —
+          # because none of them carries a category prefix. Measured 2026-08-22: the class rename
+          # produced a real `canonical-reuse` finding and this gate would have gone green on it.
+          # Continuation lines are indented, so the `^` anchor is the whole guard.
+          #
           # ⚠️ `set -e` stays OFF across the count. `grep -c` exits 1 when it counts ZERO, so with
           # `bash -e` this line killed the job before its first echo — the gate went red precisely
           # when workflow_plan/ was clean, and had done since the baseline reached 0 on 2026-08-17.
           # Three red runs on main, none of them about the code. Still not `|| true`: that is the
           # nobsmed failure the comment above names, where a usage message counted as 0 and passed.
-          FOUND=$(printf '%s\n' "$OUT" | grep -cE '^(naming|typing|topology|provenance)\.[a-z_]+:')
+          FOUND=$(printf '%s\n' "$OUT" | grep -cE '^[a-z][a-z0-9._-]*: ')
           set -e
           if [ "$RC" -ne 0 ] && [ "$FOUND" -eq 0 ]; then
-            echo "::error::conceptlint failed to run — this gate was measuring nothing."
+            echo "::error::workflow-plan lint failed to run — this gate was measuring nothing."
             printf '%s\n' "$OUT" | tail -20
             exit 1
           fi
           echo "findings: $FOUND   baseline: $BASELINE"
-          printf '%s\n' "$OUT" | grep -E '^(naming|typing|topology|provenance)\.[a-z_]+:' || true
+          printf '%s\n' "$OUT" | grep -E '^[a-z][a-z0-9._-]*: ' || true
           if [ "$FOUND" -gt "$BASELINE" ]; then
             echo "::error::self-lint findings rose from $BASELINE to $FOUND"
             exit 1

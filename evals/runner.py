@@ -24,7 +24,7 @@ import sys
 from dataclasses import dataclass, field
 
 from workflow_plan.naming.declared_term import DeclaredTerm
-from conceptlint.core.concept_rule import ConceptIssue
+from conceptlint.core.coherence_rule import CoherenceIssue
 from conceptlint.core.lint import lint
 from workflow_plan.invariants import check
 from workflow_plan.invariants.typing.plan_time_only import PLAN_TIME_ONLY
@@ -151,8 +151,8 @@ def run_case(case: pathlib.Path) -> list[CaseResult]:
     return out
 
 
-def _lint_file(path: pathlib.Path) -> list[ConceptIssue]:
-    """Every rule that can run against one subject file, as `ConceptIssue`s.
+def _lint_file(path: pathlib.Path) -> list[CoherenceIssue]:
+    """Every rule that can run against one subject file, as `CoherenceIssue`s.
 
     Two surfaces, both required: the declared vocabulary (SEED plus whatever the file declares) for
     the concept rules, and the file's ordinary models read off disk for the record rules. A case
@@ -160,7 +160,7 @@ def _lint_file(path: pathlib.Path) -> list[ConceptIssue]:
     the whole point of the second.
     """
     issues = list(lint(SEED + _concepts_declared_in(path)))
-    issues += [ConceptIssue(v.invariant_id, v.message)
+    issues += [CoherenceIssue(v.invariant_id, v.message)
                for v in check(discover_models(path), (PLAN_TIME_ONLY,))]
     return issues
 
