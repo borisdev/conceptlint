@@ -354,3 +354,76 @@ def test_the_readme_does_not_promise_rdf_it_does_not_have() -> None:
         assert term not in sources, (
             f"{term} exists now — the README's 'a door, not a feature' paragraph is stale and "
             f"understates what ships")
+
+
+# --- Activity.duration_secs: a measurement, not a derived value ----------------------------------
+
+def test_a_negative_duration_is_refused_not_clamped() -> None:
+    """A monotonic clock does not run backwards, so a negative duration proves the value was
+    derived from wall-clock timestamps across a correction. Clamping it downstream is how a
+    40-second step reports as instant."""
+    from datetime import datetime
+
+    from plan_types.ontology import Activity
+    from plan_types.ontology.prov import GraphError
+
+    t = datetime(2026, 8, 22, 12, 0, 0)
+    with pytest.raises(GraphError, match="does not run backwards"):
+        Activity(id="a", step_name="S", started_at=t, ended_at=t, duration_secs=-0.5)
+
+
+def test_zero_and_unmeasured_are_different_states() -> None:
+    """0.0 is a real measurement of a sub-millisecond step. None is NOT MEASURED. A renderer that
+    shows them the same puts back the failure the field exists to prevent."""
+    from datetime import datetime
+
+    from plan_types.ontology import Activity
+
+    t = datetime(2026, 8, 22, 12, 0, 0)
+    assert Activity(id="a", step_name="S", started_at=t, ended_at=t, duration_secs=0.0).duration_secs == 0.0
+    assert Activity(id="b", step_name="S", started_at=t, ended_at=t).duration_secs is None
+
+
+def test_a_duration_without_an_end_is_refused() -> None:
+    """Otherwise 'still running' and 'finished, unmeasured' are the same state."""
+    from datetime import datetime
+
+    from plan_types.ontology import Activity
+    from plan_types.ontology.prov import GraphError
+
+    with pytest.raises(GraphError, match="has not ended"):
+        Activity(id="a", step_name="S", started_at=datetime(2026, 8, 22), duration_secs=1.0)
+
+
+def test_a_reconstructed_duration_is_reported() -> None:
+    """The invariant Boris asked for: if duration_secs was computed as ended_at - started_at, say
+    so. Two clocks started at different instants do not agree to full float precision."""
+    from datetime import datetime, timedelta
+
+    from plan_types.invariants import validate
+    from plan_types.invariants.provenance import DURATION_ALL
+    from plan_types.ontology import Activity
+
+    t = datetime(2026, 8, 22, 12, 0, 0)
+    derived = Activity(id="a", step_name="S", started_at=t, ended_at=t + timedelta(seconds=3),
+                       duration_secs=3.0)
+    assert "reconstructed" in str(validate([derived], DURATION_ALL)[0])
+
+    measured = Activity(id="b", step_name="S", started_at=t, ended_at=t + timedelta(seconds=3),
+                        duration_secs=3.0001227)
+    assert validate([measured], DURATION_ALL) == []
+
+
+def test_clock_divergence_is_reported_as_the_finding() -> None:
+    """The other direction: the measurement is fine and the wall clock moved under it. Reported,
+    not resolved — which clock to believe depends on deploy history this rule cannot see."""
+    from datetime import datetime, timedelta
+
+    from plan_types.invariants import validate
+    from plan_types.invariants.provenance import DURATION_ALL
+    from plan_types.ontology import Activity
+
+    t = datetime(2026, 8, 22, 12, 0, 0)
+    ntp_stepped = Activity(id="a", step_name="S", started_at=t, ended_at=t + timedelta(seconds=40),
+                           duration_secs=2.5)
+    assert "disagree" in str(validate([ntp_stepped], DURATION_ALL)[0])

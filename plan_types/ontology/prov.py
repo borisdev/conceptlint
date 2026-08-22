@@ -105,6 +105,43 @@ class Activity(Node):
     outcome: str = "ok"          # "ok" | "error"
     error: str = ""
 
+    #: How long the step took, from a MONOTONIC clock. Deliberately NOT derived from
+    #: `ended_at - started_at`.
+    #:
+    #: Those timestamps are PROVENANCE — when it happened, for correlating against logs. This is
+    #: MEASUREMENT. The two have no reason to share a failure mode, and deriving one from the other
+    #: means a clock correction silently corrupts a performance number. The corruption is asymmetric:
+    #: an NTP step backwards gives a NEGATIVE duration, something downstream clamps it, and a
+    #: 40-second step reports as instant — which reads as a result rather than an error.
+    #:
+    #: ⚠️ `None` means NOT MEASURED, never zero. Zero is a legitimate measured value, since a
+    #: sub-millisecond step rounds to 0.0. A renderer showing `None` as `0.0s` or a dash puts back
+    #: exactly the failure above.
+    duration_secs: float | None = None
+
+    @model_validator(mode="after")
+    def _duration_is_a_measurement(self) -> Activity:
+        """Two shapes a monotonic measurement cannot legally have.
+
+        A monotonic clock does not run backwards, so a negative duration is not a slow step — it is
+        proof the value did not come from one, and almost certainly came from subtracting two
+        wall-clock timestamps across a correction. Refused here rather than clamped later.
+
+        And a step that has not ended has no duration. Allowing one would make "still running" and
+        "finished, unmeasured" the same state.
+        """
+        if self.duration_secs is not None and self.duration_secs < 0:
+            raise GraphError(
+                f"Activity {self.id!r} has duration_secs={self.duration_secs}. A monotonic clock "
+                f"does not run backwards, so a negative duration means this was derived from "
+                f"wall-clock timestamps across a correction, not measured. Use time.monotonic().")
+        if self.ended_at is None and self.duration_secs is not None:
+            raise GraphError(
+                f"Activity {self.id!r} has a duration but no ended_at. A step that has not ended "
+                f"has no duration; allowing one makes 'still running' and 'finished, unmeasured' "
+                f"the same state.")
+        return self
+
 
 class Agent(Node):
     """Who or what performed an Activity — a service, a model, a person: prov:Agent.
