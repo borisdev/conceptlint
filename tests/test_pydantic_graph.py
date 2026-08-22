@@ -13,7 +13,7 @@ import pytest
 pytest.importorskip("pydantic_graph", reason="optional extra: uv sync --extra pydantic-graph")
 
 from plan_types.execution import (ExecutionError, LocalRunner, check_strategy,  # noqa: E402
-                                  execute)
+                                  run)
 from plan_types.execution.pydantic_graph import to_pydantic_graph  # noqa: E402
 
 
@@ -22,7 +22,7 @@ def test_both_runtimes_agree() -> None:
 
     reader = User(name="Samuel", interests=("type safety", "graphs"))
     for strategy in (terse, warm):
-        local = execute(plan, {"user": reader}, LocalRunner(strategy))["email"]
+        local = run(plan, {"user": reader}, LocalRunner(strategy))["email"]
         graph = to_pydantic_graph(plan, strategy)
         assert asyncio.run(graph.run(state={}, inputs={"user": reader}))["email"] == local
 
@@ -115,10 +115,10 @@ def test_stage3_and_the_control_arm_agree() -> None:
     """The comparison is only worth reading if both arms compute the same thing."""
     from examples.pydantic_graph_docs import control_no_plan as ctrl
     from examples.pydantic_graph_docs import stage3_map_join as s3
-    from plan_types.execution import LocalRunner, execute
+    from plan_types.execution import LocalRunner, run
 
     for case in s3.CORPUS:
-        with_plan = [execute(s3.plan, {"numbers": case}, LocalRunner(a))["total"]
+        with_plan = [run(s3.plan, {"numbers": case}, LocalRunner(a))["total"]
                      for a in s3.ARMS.values()]
         control = [asyncio.run(ctrl.build(impl).run(inputs=case))
                    for impl in ctrl.ARMS.values()]
@@ -135,11 +135,11 @@ def test_a_mapped_step_gives_their_documented_answer() -> None:
     """Their docs print `Results: [1, 4, 9, 16, 25]`. Both our runtimes must too — and the
     compiled one gets there through their real `.map()` and join, not a loop wearing the name."""
     from examples.pydantic_graph_docs.stage3_map_join import ARMS, plan
-    from plan_types.execution import LocalRunner, execute
+    from plan_types.execution import LocalRunner, run
     from plan_types.execution.pydantic_graph import to_pydantic_graph
 
     case = {"numbers": [1, 2, 3, 4, 5]}
-    assert execute(plan, case, LocalRunner(ARMS["exact"]))["squares"] == [1, 4, 9, 16, 25]
+    assert run(plan, case, LocalRunner(ARMS["exact"]))["squares"] == [1, 4, 9, 16, 25]
     compiled = asyncio.run(to_pydantic_graph(plan, ARMS["exact"]).run(state={}, inputs=case))
     assert compiled["squares"] == [1, 4, 9, 16, 25]
 

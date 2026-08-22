@@ -1,6 +1,6 @@
 """`LocalRunner` and `execute` — the smallest thing that can actually run a Plan.
 
-    execute(plan, inputs, LocalRunner(strategy))
+    run(plan, inputs, LocalRunner(strategy))
 
 In-process, sequential, no retries, no concurrency, no durability. It exists to answer one
 question — *does the declared process, plus these implementations, produce the expected result?* —
@@ -152,8 +152,17 @@ def _check_type(cls: type[Step], var: Any, value: Any) -> None:
             f"flows here; the next Step would receive the wrong thing.")
 
 
-def execute(plan: Plan, inputs: Mapping[str, Any], runner: StepRunner) -> dict[str, Any]:
+def run(plan: Plan, inputs: Mapping[str, Any], runner: StepRunner) -> dict[str, Any]:
     """Run every Step in dependency order. Returns every Variable produced, keyed by name.
+
+    Named `run` because that is the verb in the libraries this sits above — `agent.run()`,
+    `graph.run()`. It is a FUNCTION and not `Plan.run()`: a method would bake execution semantics
+    into the declaration, which is the coupling this package exists to avoid.
+
+    ⚠️ Returns a plain dict, not a provenance record. `plan_types.ontology.prov.Run` is
+    `prov:Bundle` — one execution of a Plan, with an `Activity` per Step and an `Entity` per value —
+    and it is written, validated and entirely unused. Populating it from here is a real feature and
+    has not been built; this docstring says so rather than letting the return type imply it.
 
     Everything, not only `plan.outputs` — an intermediate is what you want when a run went wrong,
     and hiding it would make the runner's own output less useful than a print statement. The Plan's

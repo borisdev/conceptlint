@@ -5,6 +5,12 @@ executes it.
 
 The Python package is `plan_types`.
 
+**If you also use Pydantic Graph, both libraries export `Step`, and they mean different things.**
+`pydantic_graph.Step` is an executable node — the decorated function is the implementation.
+`plan_types.Step` is a declaration: `p-plan:Step`, an intended operation, as distinct from
+`prov:Activity`, one execution of it. Import as `from plan_types import Step as PlanStep` when both
+are in scope. (`Edge` collides too, but `plan_types`' is internal and not exported.)
+
 LangGraph, Temporal and [Pydantic Graph](https://pydantic.dev/docs/ai/graph/builder/) execute
 workflows. This library sits above them: it describes what a workflow *is* — steps, typed data
 dependencies, and the constraints they must satisfy — and leaves execution to one of those, or to
@@ -30,7 +36,8 @@ uv run pytest -q
 | `Service` | something a Step needs reachable (an API, a database, a file) | plan |
 | `MultiStep` | a Plan that is also a Step, for nesting | plan |
 | `Strategy` | a mapping from Step class to the function that implements it | binding |
-| `StepRunner` | protocol for executing a Step; `LocalRunner` is the in-process implementation | execution |
+| `StepRunner` | protocol for executing one Step; `LocalRunner` is the in-process implementation | execution |
+| `run(plan, inputs, runner)` | executes a Plan in dependency order | execution |
 
 `Plan`, `Step` and `Variable` are taken from [P-Plan](http://purl.org/net/p-plan#); `Activity`,
 `Entity` and `Agent` from [PROV-O](https://www.w3.org/TR/prov-o/).
@@ -90,7 +97,7 @@ Implementations are ordinary functions, associated with Steps by a `Strategy` �
 Parameter names must match the input Variable names, because the runner calls by keyword.
 
 ```python
-from plan_types.execution import LocalRunner, check_strategy, execute
+from plan_types.execution import LocalRunner, check_strategy, run
 
 def summarize_fast(document: Document, outline: Outline) -> Summary: ...
 def summarize_precise(document: Document, outline: Outline) -> Summary: ...
@@ -99,8 +106,8 @@ fast    = {MakeOutline: outline_by_sentence, Summarize: summarize_fast}
 precise = {MakeOutline: outline_by_sentence, Summarize: summarize_precise}
 
 check_strategy(plan, fast)          # -> () ; reports unbound Steps and signature mismatches
-execute(plan, {"document": doc}, LocalRunner(fast))
-execute(plan, {"document": doc}, LocalRunner(precise))
+run(plan, {"document": doc}, LocalRunner(fast))
+run(plan, {"document": doc}, LocalRunner(precise))
 ```
 
 The same `plan` object serves both. One Step may have several implementations without becoming
@@ -266,7 +273,13 @@ There is **no RDF import or export** — no Turtle, no JSON-LD, no `rdflib`. The
 checked vocabulary, not a serialization format.
 
 `p-plan:Step` is an intended operation; `prov:Activity` is one execution of it. The library keeps
-them distinct even where a runtime maps them one to one.
+them distinct even where a runtime maps them one to one. Temporal's `Activity` is `prov:Activity`,
+not a `Step`.
+
+`plan_types.ontology` holds the PROV-O side as Pydantic models — `Entity`, `Activity`, `Agent`, and
+`Run` (`prov:Bundle`, one execution of a Plan, with validated referential integrity between its
+edges). **None of it is populated by `run()`, which returns a plain dict.** Producing a provenance
+document from an execution is a feature these types were written for and it is not built.
 
 ## Limitations
 

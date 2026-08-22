@@ -10,7 +10,7 @@ import pytest
 
 from plan_types import Plan, Step, Variable
 from plan_types.execution import (ExecutionError, LocalRunner, StepRunner, check_strategy,
-                                  execute)
+                                  run)
 
 document = Variable("document", str)
 outline = Variable("outline", tuple)
@@ -82,14 +82,14 @@ def test_retired_message_names_its_own_replacement() -> None:
 
 def test_same_plan_two_strategies_differ() -> None:
     """The capability the whole change exists for: the Plan object is not touched between arms."""
-    a = execute(plan, {"document": "one two three"}, LocalRunner(short))
-    b = execute(plan, {"document": "one two three"}, LocalRunner(long_))
+    a = run(plan, {"document": "one two three"}, LocalRunner(short))
+    b = run(plan, {"document": "one two three"}, LocalRunner(long_))
     assert a["summary"] == "one"
     assert b["summary"] == "one two three"
 
 
 def test_execute_returns_intermediates_too() -> None:
-    env = execute(plan, {"document": "a b"}, LocalRunner(short))
+    env = run(plan, {"document": "a b"}, LocalRunner(short))
     assert env["outline"] == ("a", "b")
 
 
@@ -102,7 +102,7 @@ def test_local_runner_satisfies_the_protocol_structurally() -> None:
 
 def test_missing_binding_names_the_step() -> None:
     with pytest.raises(ExecutionError, match="Condense"):
-        execute(plan, {"document": "a"}, LocalRunner({BuildIndex: index_impl}))
+        run(plan, {"document": "a"}, LocalRunner({BuildIndex: index_impl}))
 
 
 def test_async_refused() -> None:
@@ -112,13 +112,13 @@ def test_async_refused() -> None:
 
     strategy = {BuildIndex: index_impl, Condense: condense_async}
     with pytest.raises(ExecutionError, match="coroutine"):
-        execute(plan, {"document": "a"}, LocalRunner(strategy))
+        run(plan, {"document": "a"}, LocalRunner(strategy))
 
 
 def test_wrong_output_type_refused() -> None:
     strategy = {BuildIndex: index_impl, Condense: lambda document, outline: 42}
     with pytest.raises(ExecutionError, match="declares 'summary' as str"):
-        execute(plan, {"document": "a"}, LocalRunner(strategy))
+        run(plan, {"document": "a"}, LocalRunner(strategy))
 
 
 def test_multi_output_arity_refused() -> None:
@@ -129,9 +129,9 @@ def test_multi_output_arity_refused() -> None:
 
     two = Plan(name="two", steps=(Split(),), declared_inputs=(document,))
     with pytest.raises(ExecutionError, match="must return a tuple of 2"):
-        execute(two, {"document": "a"}, LocalRunner({Split: lambda document: "only one"}))
+        run(two, {"document": "a"}, LocalRunner({Split: lambda document: "only one"}))
 
-    env = execute(two, {"document": "a"}, LocalRunner({Split: lambda document: ("l", "r")}))
+    env = run(two, {"document": "a"}, LocalRunner({Split: lambda document: ("l", "r")}))
     assert (env["left"], env["right"]) == ("l", "r")
 
 
@@ -141,15 +141,15 @@ def test_output_from_a_step_declaring_none_refused() -> None:
 
     p = Plan(name="a", steps=(Audit(),), declared_inputs=(document,))
     with pytest.raises(ExecutionError, match="declares no outputs"):
-        execute(p, {"document": "a"}, LocalRunner({Audit: lambda document: "leaked"}))
+        run(p, {"document": "a"}, LocalRunner({Audit: lambda document: "leaked"}))
 
-    assert execute(p, {"document": "a"}, LocalRunner({Audit: lambda document: None})) == {
+    assert run(p, {"document": "a"}, LocalRunner({Audit: lambda document: None})) == {
         "document": "a"}
 
 
 def test_missing_plan_input_named() -> None:
     with pytest.raises(ExecutionError, match=r"expects \['document'\]"):
-        execute(plan, {}, LocalRunner(short))
+        run(plan, {}, LocalRunner(short))
 
 
 def test_two_variables_one_name_refused() -> None:
@@ -161,7 +161,7 @@ def test_two_variables_one_name_refused() -> None:
 
     p = Plan(name="clash", steps=(BuildIndex(), Other()), declared_inputs=(document,))
     with pytest.raises(ExecutionError, match="sharing the name"):
-        execute(p, {"document": "a"}, LocalRunner({}))
+        run(p, {"document": "a"}, LocalRunner({}))
 
 
 # ── check_strategy: static, and honest about what it cannot see ──────────────────────────────────

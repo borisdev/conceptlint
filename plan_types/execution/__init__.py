@@ -8,9 +8,9 @@ claim the package makes.
     Strategy    how it is performed             here
     StepRunner  the mechanics of performing it  here
 """
-from plan_types.execution.local import ExecutionError, LocalRunner, execute
+from plan_types.execution.local import ExecutionError, LocalRunner, run
 from plan_types.execution.runner import StepRunner
 from plan_types.execution.strategy import Implementation, Strategy, check_strategy
 
 __all__ = ["Strategy", "Implementation", "check_strategy",
-           "StepRunner", "LocalRunner", "execute", "ExecutionError"]
+           "StepRunner", "LocalRunner", "run", "ExecutionError"]

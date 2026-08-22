@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from plan_types import Plan, Step, Variable, render_mermaid, validate
-from plan_types.execution import LocalRunner, check_strategy, execute
+from plan_types.execution import LocalRunner, check_strategy, run
 from plan_types.invariants import topology, typing
 
 
@@ -106,7 +106,7 @@ def main() -> None:
         problems = check_strategy(plan, strategy)
         if problems:
             raise SystemExit("\n".join(problems))
-        result = execute(plan, {"document": doc}, LocalRunner(strategy))
+        result = run(plan, {"document": doc}, LocalRunner(strategy))
         print(f"{arm:>8}: {result['summary'].text}")
 
 

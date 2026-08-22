@@ -24,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from plan_types import Plan, Service, Step, Variable, render_mermaid, validate
-from plan_types.execution import LocalRunner, check_strategy, execute
+from plan_types.execution import LocalRunner, check_strategy, run
 from plan_types.invariants import topology, typing
 
 
@@ -107,7 +107,7 @@ def main() -> None:
         problems = check_strategy(plan, strategy)
         if problems:
             raise SystemExit("\n".join(problems))
-        env = execute(plan, {"plan_text": paste}, LocalRunner(strategy))
+        env = run(plan, {"plan_text": paste}, LocalRunner(strategy))
         print(f"{arm:>14}: draft {len(env['draft'].edges)} edges -> kept {env['case_graph']}")
 
 

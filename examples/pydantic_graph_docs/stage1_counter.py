@@ -17,7 +17,7 @@ import asyncio
 from dataclasses import dataclass
 
 from plan_types import Plan, Step, Variable, render_mermaid, validate
-from plan_types.execution import LocalRunner, execute
+from plan_types.execution import LocalRunner, run
 from plan_types.execution.pydantic_graph import to_pydantic_graph
 from plan_types.invariants import topology, typing
 
@@ -88,7 +88,7 @@ async def main() -> None:
     print(render_mermaid(plan))
 
     theirs = await their_version()
-    ours_local = execute(plan, {}, LocalRunner(strategy))["doubled"]
+    ours_local = run(plan, {}, LocalRunner(strategy))["doubled"]
     ours_on_their_runtime = (await to_pydantic_graph(plan, strategy).run(state={}, inputs={}))["doubled"]
 
     print(f"  their GraphBuilder, hand-wired   {theirs}")

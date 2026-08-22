@@ -23,7 +23,7 @@ import asyncio
 from dataclasses import dataclass
 
 from plan_types import Plan, Step, Variable, render_mermaid, validate
-from plan_types.execution import LocalRunner, check_strategy, execute
+from plan_types.execution import LocalRunner, check_strategy, run
 from plan_types.execution.pydantic_graph import to_pydantic_graph
 from plan_types.invariants import topology, typing
 
@@ -116,7 +116,7 @@ async def main() -> None:
     for arm, strategy in (("terse", terse), ("warm", warm)):
         assert check_strategy(plan, strategy) == ()
 
-        local = execute(plan, {"user": reader}, LocalRunner(strategy))["email"]
+        local = run(plan, {"user": reader}, LocalRunner(strategy))["email"]
 
         graph = to_pydantic_graph(plan, strategy)
         on_graph = (await graph.run(state={}, inputs={"user": reader}))["email"]

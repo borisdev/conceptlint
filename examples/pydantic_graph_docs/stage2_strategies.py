@@ -22,7 +22,7 @@ from __future__ import annotations
 import asyncio
 
 from plan_types import Plan, Step, Variable, render_mermaid, validate
-from plan_types.execution import LocalRunner, check_strategy, execute
+from plan_types.execution import LocalRunner, check_strategy, run
 from plan_types.execution.pydantic_graph import to_pydantic_graph
 from plan_types.invariants import topology, typing
 
@@ -49,7 +49,7 @@ async def main() -> None:
         cells = []
         for strategy in ARMS.values():
             assert check_strategy(plan, strategy) == ()
-            got = execute(plan, {"numbers": case}, LocalRunner(strategy))["total"]
+            got = run(plan, {"numbers": case}, LocalRunner(strategy))["total"]
             cells.append(f"{got:>13} {'ok' if got == expected else 'WRONG':>6}")
         print(f"  {str(case):<12} {expected:>9} " + " ".join(cells))
 

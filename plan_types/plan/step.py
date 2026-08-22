@@ -144,7 +144,7 @@ class Step(Generic[InputT, OutputT]):
             "a Step DECLARES a transformation; it does not perform one. A method here is one "
             "implementation privileged over every other, so a second way of doing the same "
             "operation becomes an override rather than a peer. Bind implementations with a "
-            "Strategy instead — `from plan_types.execution import LocalRunner, execute` — which "
+            "Strategy instead — `from plan_types.execution import LocalRunner, run` — which "
             "is per execution, so one Plan can run several ways without being edited.",
     }
 

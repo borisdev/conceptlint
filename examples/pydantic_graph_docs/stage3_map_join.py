@@ -29,7 +29,7 @@ from __future__ import annotations
 import asyncio
 
 from plan_types import Plan, Step, Variable, render_mermaid, validate
-from plan_types.execution import LocalRunner, check_strategy, execute
+from plan_types.execution import LocalRunner, check_strategy, run
 from plan_types.execution.pydantic_graph import to_pydantic_graph
 from plan_types.invariants import topology, typing
 
@@ -45,7 +45,7 @@ async def main() -> None:
 
     print("\nTHEIR DOCS' OWN CASE — inputs=[1, 2, 3, 4, 5]\n")
     strategy = ARMS["exact"]
-    local = execute(plan, {"numbers": [1, 2, 3, 4, 5]}, LocalRunner(strategy))
+    local = run(plan, {"numbers": [1, 2, 3, 4, 5]}, LocalRunner(strategy))
     on_theirs = await to_pydantic_graph(plan, strategy).run(
         state={}, inputs={"numbers": [1, 2, 3, 4, 5]})
     print(f"  their docs say          Results: [1, 4, 9, 16, 25]")
@@ -61,7 +61,7 @@ async def main() -> None:
         cells = []
         for s in ARMS.values():
             assert check_strategy(plan, s) == ()
-            got = execute(plan, {"numbers": case}, LocalRunner(s))["total"]
+            got = run(plan, {"numbers": case}, LocalRunner(s))["total"]
             cells.append(f"{got:>8} {'ok' if got == expected else 'WRONG':>5}")
         print(f"  {str(case):<16} {expected:>9} " + " ".join(cells))
 
