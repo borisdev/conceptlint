@@ -178,3 +178,24 @@ def test_a_mapped_step_must_be_the_per_item_operation() -> None:
         class Confused(PlanStep):
             inputs, outputs = (xs,), (y,)
             map_over = (xs, ys)
+
+
+def test_the_hand_written_wrapper_and_the_plan_run_the_same_function() -> None:
+    """The README's LEAD integration, so it cannot be copy that nothing executes.
+
+    ⚠️ This is the claim, and it is not "the numbers happen to match": both callers look the
+    implementation up in the same `Strategy`, so there is one function and two call sites. A test
+    that only asserted `2 == 2` would still pass if the node body were reimplemented by hand, which
+    is the drift the whole arrangement exists to prevent.
+    """
+    from examples.pydantic_graph_docs.hand_written_wrapper import hand_written
+    from examples.pydantic_graph_docs.stage1_counter import DoubleIt, plan, strategy
+
+    theirs = asyncio.run(hand_written())
+    ours = run(plan, {}, SequentialRunner(strategy))["doubled"]
+    assert theirs == ours == 2
+
+    # Rebind ONE step and both sides must move together. If they do not, the node body is its own
+    # implementation and the Plan is decoration.
+    rebound = {**strategy, DoubleIt: lambda count: count * 10}
+    assert run(plan, {}, SequentialRunner(rebound))["doubled"] == 10
