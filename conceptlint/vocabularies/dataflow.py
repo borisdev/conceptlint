@@ -26,9 +26,9 @@ Every alias names the framework it comes from. An alias with no source is a word
 this file would then be doing exactly what the product exists to catch: asserting past its evidence.
 
 ⚠️ The subtle one, and it is subtle enough that the dataflow README calls it out on its own:
-**Temporal's `Activity` is our `Activity`, not our `Step`.** Anyone reading it the other way is
+**Temporal's `Activity` is our `Activity`, not our `PlanStep`.** Anyone reading it the other way is
 wrong by exactly one level and has no reason to suspect it. Likewise Airflow's `task` is plan-time
-(a `Step`) while its `task instance` is runtime (an `Activity`) — the same word, one level apart,
+(a `PlanStep`) while its `task instance` is runtime (an `Activity`) — the same word, one level apart,
 which is why both appear below pointing at different canonical terms.
 """
 from __future__ import annotations
@@ -47,7 +47,7 @@ DATAFLOW: dict[str, tuple[tuple[str, str], ...]] = {
         ("pipeline", "Kubeflow / scikit-learn"),
         ("jobgraph", "Flink"),
     ),
-    "Step": (
+    "PlanStep": (
         ("operator", "Airflow"),
         ("op", "Dagster"),
         ("component", "Kubeflow"),
@@ -91,9 +91,9 @@ DATAFLOW: dict[str, tuple[tuple[str, str], ...]] = {
 #:
 #: They belong in the AMBIGUOUS list instead: words to ask about, never to resolve.
 AMBIGUOUS_ACROSS_FRAMEWORKS: dict[str, str] = {
-    "task": "plan-time in Airflow/Prefect, runtime in Celery — say Step or Activity",
+    "task": "plan-time in Airflow/Prefect, runtime in Celery — say PlanStep or Activity",
     "job": "a whole Plan in Dagster, one execution in Kubernetes — say Plan or Run",
-    "node": "a Step in a DAG, a machine in a cluster — say Step or Worker",
+    "node": "a PlanStep in a DAG, a machine in a cluster — say PlanStep or Worker",
     "execution": "a Run of a Plan, or one Activity — say which",
 }
 

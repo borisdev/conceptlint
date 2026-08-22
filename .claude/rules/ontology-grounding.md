@@ -8,7 +8,7 @@
 ONTOLOGY_IRI: ClassVar[str] = "http://purl.org/net/p-plan#Step"   # "P-Plan grounding"
 ```
 
-written **from memory**, and then `Step` was given a single `consumes` and a single `produces`, and
+written **from memory**, and then `PlanStep` was given a single `consumes` and a single `produces`, and
 `Plan` was validated as a pairwise chain. The actual ontology says none of that:
 
 | P-Plan says | we implemented |
@@ -16,7 +16,7 @@ written **from memory**, and then `Step` was given a single `consumes` and a sin
 | `hasInputVar` — no cardinality restriction | one input |
 | `hasOutputVar` — no cardinality restriction | one output |
 | `isOutputVarOf` **is** `owl:FunctionalProperty` | not modelled |
-| `MultiStep` — a Plan that IS a Step | not modelled |
+| `MultiStep` — a Plan that IS a PlanStep | not modelled |
 | ordering via transitive `isPrecededBy` | declaration order |
 
 It surfaced only when a real builder — `evidence_first`, whose fifth step needs three earlier values

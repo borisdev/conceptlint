@@ -1,10 +1,10 @@
-"""STAGE 2 — three implementations of ONE logical Step, evaluated against each other.
+"""STAGE 2 — three implementations of ONE logical PlanStep, evaluated against each other.
 
 Domain is theirs: `parallel_processing.py` squares numbers. The Plan:
 
     numbers ──> Square ──> squares ──> Total ──> total
 
-Three strategies vary ONE Step. `Square` stands in for the step you would really want to vary —
+Three strategies vary ONE PlanStep. `Square` stands in for the step you would really want to vary —
 a different model, a different prompt, a different agent. Deterministic stand-ins here so the file
 runs with no API key and the same numbers come out every time; the STRUCTURE is what is being
 shown, and it is identical either way.
@@ -21,10 +21,10 @@ from __future__ import annotations
 
 import asyncio
 
-from plan_types import Plan, Step, Variable, render_mermaid, validate
-from plan_types.execution import LocalRunner, check_strategy, run
-from plan_types.execution.pydantic_graph import to_pydantic_graph
-from plan_types.invariants import topology, typing
+from workflow_plan import Plan, PlanStep, Variable, render_mermaid, check
+from workflow_plan.execution import SequentialRunner, check_strategy, run
+from workflow_plan.execution.pydantic_graph import to_pydantic_graph
+from workflow_plan.invariants import topology, typing
 
 from examples.pydantic_graph_docs.their_example import (ARMS, Square, Total, numbers,
                                                         plan, squares)
@@ -34,7 +34,7 @@ CORPUS = [[1, 2, 3], [4, 5], [12], [3, 20]]
 
 
 async def main() -> None:
-    print("invariants:", validate(plan, [*topology.ALL, *typing.ALL]) or "[]")
+    print("invariants:", check(plan, [*topology.ALL, *typing.ALL]) or "[]")
 
     print("\nSAME PLAN, THREE STRATEGIES — identical topology, different labels:\n")
     for arm, strategy in ARMS.items():
@@ -49,7 +49,7 @@ async def main() -> None:
         cells = []
         for strategy in ARMS.values():
             assert check_strategy(plan, strategy) == ()
-            got = run(plan, {"numbers": case}, LocalRunner(strategy))["total"]
+            got = run(plan, {"numbers": case}, SequentialRunner(strategy))["total"]
             cells.append(f"{got:>13} {'ok' if got == expected else 'WRONG':>6}")
         print(f"  {str(case):<12} {expected:>9} " + " ".join(cells))
 

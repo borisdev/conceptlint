@@ -3,5 +3,5 @@ commit: 668a2b8
 failure: private_synonym
 notes: >
   Section 29 names DataFlowNode specifically as the synonym an agent reaches for because it sounds
-  more computer-sciencey than Step. Kept as a golden case rather than a real one — this is the
+  more computer-sciencey than PlanStep. Kept as a golden case rather than a real one — this is the
   failure the product was commissioned to prevent, so it must be pinned from day one.

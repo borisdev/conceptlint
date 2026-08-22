@@ -22,8 +22,8 @@ import re
 import sys
 from typing import Iterable, Sequence
 
-from conceptlint.core.concept import Concept, declared
-from conceptlint.core.invariant import ConceptIssue, Invariant, registered
+from workflow_plan.naming.declared_term import DeclaredTerm, declared
+from conceptlint.core.coherence_rule import CoherenceIssue, CoherenceRule, registered
 _WORD = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
 
 
@@ -32,7 +32,27 @@ def words(name: str) -> set[str]:
     return {w.lower() for w in _WORD.findall(name.replace("_", " ")) if len(w) > 2}
 
 
-def _ancestry(c: type[Concept]) -> list[type[Concept]]:
+def head(name: str) -> str:
+    """The HEAD NOUN — the last word. `ClinicalFinding` -> "finding", `PlanStep` -> "step".
+
+    ⚠️ This is the distinction both rules below claimed to make and neither made, found 2026-08-22
+    when they were first pointed at this package's own vocabulary instead of at five toy
+    declarations. English compounds are head-final: the qualifier narrows, the head says WHAT IT IS.
+
+        ResearchFinding   head `finding`   IS a Finding   -> a duplicate risk, and the rule's own example
+        PlanStep          head `step`      IS a Step      -> not a Plan, whatever the substring says
+
+    `CanonicalReuse` tested raw substring containment and `NearDuplicate` tested ANY shared word, so
+    both reported `PlanStep` as circling `Plan`. The fix a reader is offered — declare
+    `REFINES = Plan` — would have been false, and a rule whose documented fix is a lie is worse than
+    no rule. `NearDuplicate.WHY` has said "share their head noun" the whole time; this is the
+    implementation catching up with it.
+    """
+    found = _WORD.findall(name.replace("_", " "))
+    return found[-1].lower() if found else name.lower()
+
+
+def _ancestry(c: type[DeclaredTerm]) -> list[type[DeclaredTerm]]:
     out, seen, cur = [], set(), c.REFINES
     while cur is not None and cur not in seen:
         seen.add(cur)
@@ -41,7 +61,7 @@ def _ancestry(c: type[Concept]) -> list[type[Concept]]:
     return out
 
 
-def _related(a: type[Concept], b: type[Concept]) -> bool:
+def _related(a: type[DeclaredTerm], b: type[DeclaredTerm]) -> bool:
     """Is their relationship already declared — as ancestor, descendant, OR sibling?
 
     ⚠️ The sibling case is not a nicety. `EvidenceFinding` and `ResearchFinding` both refining
@@ -53,7 +73,7 @@ def _related(a: type[Concept], b: type[Concept]) -> bool:
     return b in up_a or a in up_b or bool(set(up_a) & set(up_b))
 
 
-class Ambiguity(Invariant):
+class Ambiguity(CoherenceRule):
     """One term, two meanings."""
 
     ID = "ambiguity"
@@ -62,16 +82,16 @@ class Ambiguity(Invariant):
            "one. `Evidence` as a study, as support for a claim, and as a citation is three "
            "concepts wearing one word, and every downstream type inherits the confusion.")
 
-    def check(self, concepts: Sequence[type[Concept]]) -> Iterable[ConceptIssue]:
-        by_id: dict[str, list[type[Concept]]] = {}
-        by_name: dict[str, list[type[Concept]]] = {}
+    def check(self, concepts: Sequence[type[DeclaredTerm]]) -> Iterable[CoherenceIssue]:
+        by_id: dict[str, list[type[DeclaredTerm]]] = {}
+        by_name: dict[str, list[type[DeclaredTerm]]] = {}
         for c in concepts:
             by_id.setdefault(c.ID, []).append(c)
             by_name.setdefault(c.__name__.lower(), []).append(c)
 
         for cid, group in sorted(by_id.items()):
             if len(group) > 1:
-                yield ConceptIssue(
+                yield CoherenceIssue(
                     self.ID, f"the wire tag {cid!r} is claimed by {len(group)} concepts",
                     [c.__name__ for c in group],
                     "give each its own ID — a stored record cannot say which one it meant")
@@ -82,14 +102,14 @@ class Ambiguity(Invariant):
             for aka in c.ALSO_KNOWN_AS:
                 for other in by_name.get(aka.lower(), []):
                     if other is not c:
-                        yield ConceptIssue(
+                        yield CoherenceIssue(
                             self.ID,
                             f"{c.__name__} lists {aka!r} as an alias, but {other.__name__} IS that name",
                             [c.__name__, other.__name__],
                             "drop the alias, or rename one — the word cannot mean both")
 
 
-class CanonicalReuse(Invariant):
+class CanonicalReuse(CoherenceRule):
     """A new name for a meaning that already has one."""
 
     ID = "canonical-reuse"
@@ -98,14 +118,16 @@ class CanonicalReuse(Invariant):
            "Left undeclared it becomes a second vocabulary, and code starts choosing between them "
            "by which import was nearer.")
 
-    def check(self, concepts: Sequence[type[Concept]]) -> Iterable[ConceptIssue]:
+    def check(self, concepts: Sequence[type[DeclaredTerm]]) -> Iterable[CoherenceIssue]:
         for c in concepts:
             for other in concepts:
                 if c is other or _related(c, other):
                     continue
-                # `other`'s whole name inside `c`'s name: ResearchFinding contains Finding.
-                if other.__name__ != c.__name__ and other.__name__ in c.__name__:
-                    yield ConceptIssue(
+                # `other` IS `c`'s head noun: ResearchFinding is a Finding. Not raw containment —
+                # `PlanStep` contains `Plan` and is a Step, so the reuse is of the QUALIFIER slot,
+                # which carries no claim about meaning. See `head()`.
+                if other.__name__ != c.__name__ and head(c.__name__) == other.__name__.lower():
+                    yield CoherenceIssue(
                         self.ID,
                         f"{c.__name__} contains the canonical name {other.__name__} "
                         f"but declares no relationship to it",
@@ -117,14 +139,14 @@ class CanonicalReuse(Invariant):
                 if c is other:
                     continue
                 if c.__name__.lower() in {a.lower() for a in other.ALSO_KNOWN_AS}:
-                    yield ConceptIssue(
+                    yield CoherenceIssue(
                         self.ID,
                         f"{c.__name__} is a name {other.__name__} records as meaning ITSELF",
                         [c.__name__, other.__name__],
                         f"use {other.__name__} — that meaning already has a canonical concept")
 
 
-class NearDuplicate(Invariant):
+class NearDuplicate(CoherenceRule):
     """Two names circling one meaning, neither containing the other."""
 
     ID = "near-duplicate"
@@ -133,22 +155,27 @@ class NearDuplicate(Invariant):
            "parent. Either one meaning has two names, or a distinction exists that nobody wrote "
            "down — and the second is only discoverable by reading both definitions.")
 
-    def check(self, concepts: Sequence[type[Concept]]) -> Iterable[ConceptIssue]:
+    def check(self, concepts: Sequence[type[DeclaredTerm]]) -> Iterable[CoherenceIssue]:
         seen: set[tuple[str, str]] = set()
         for c in concepts:
             for other in concepts:
                 if c is other or _related(c, other):
                     continue
-                if other.__name__ in c.__name__ or c.__name__ in other.__name__:
-                    continue  # containment is CanonicalReuse's finding, not a second report
-                shared = words(c.__name__) & words(other.__name__)
-                if not shared:
+                if head(c.__name__) == other.__name__.lower() or \
+                        head(other.__name__) == c.__name__.lower():
+                    continue  # head containment is CanonicalReuse's finding, not a second report
+                # ⚠️ Head nouns, not ANY shared word — which is what `WHY` above has always said.
+                # Sharing a QUALIFIER is not evidence of one meaning: `PlanStep` and
+                # `PlanDependency` share `plan` and are a step and a service, related only by both
+                # belonging to a Plan.
+                if head(c.__name__) != head(other.__name__):
                     continue
+                shared = words(c.__name__) & words(other.__name__) or {head(c.__name__)}
                 key = tuple(sorted((c.__name__, other.__name__)))
                 if key in seen:
                     continue
                 seen.add(key)
-                yield ConceptIssue(
+                yield CoherenceIssue(
                     self.ID,
                     f"{key[0]} and {key[1]} share {sorted(shared)} and declare no common parent",
                     list(key),
@@ -156,7 +183,7 @@ class NearDuplicate(Invariant):
                     "distinction explicit in their definitions")
 
 
-class ExplicitRefinement(Invariant):
+class ExplicitRefinement(CoherenceRule):
     """A declared narrowing that does not narrow anything."""
 
     ID = "explicit-refinement"
@@ -165,39 +192,39 @@ class ExplicitRefinement(Invariant):
            "A refinement whose definition matches its parent's is a duplicate that learned the "
            "password.")
 
-    def check(self, concepts: Sequence[type[Concept]]) -> Iterable[ConceptIssue]:
+    def check(self, concepts: Sequence[type[DeclaredTerm]]) -> Iterable[CoherenceIssue]:
         for c in concepts:
             parent = c.REFINES
             if parent is None:
                 continue
             if parent is c or c in _ancestry(parent):
-                yield ConceptIssue(self.ID, f"{c.__name__} refines itself, directly or in a cycle",
+                yield CoherenceIssue(self.ID, f"{c.__name__} refines itself, directly or in a cycle",
                                    [c.__name__], "point REFINES at a genuine parent, or remove it")
                 continue
             if not getattr(parent, "ID", ""):
-                yield ConceptIssue(
-                    self.ID, f"{c.__name__} refines {parent.__name__}, which is not a declared Concept",
-                    [c.__name__], "REFINES must point at a Concept subclass with an ID")
+                yield CoherenceIssue(
+                    self.ID, f"{c.__name__} refines {parent.__name__}, which is not a declared DeclaredTerm",
+                    [c.__name__], "REFINES must point at a DeclaredTerm subclass with an ID")
                 continue
             if c.DEFINITION.strip().lower() == parent.DEFINITION.strip().lower():
-                yield ConceptIssue(
+                yield CoherenceIssue(
                     self.ID,
                     f"{c.__name__} refines {parent.__name__} but repeats its definition verbatim",
                     [c.__name__, parent.__name__],
                     "say what NARROWS, or delete the child and use the parent")
 
 
-def lint(concepts: Sequence[type[Concept]] | None = None) -> list[ConceptIssue]:
+def lint(concepts: Sequence[type[DeclaredTerm]] | None = None) -> list[CoherenceIssue]:
     """Run every registered invariant. Empty list means pass — there is no passing issue."""
     subjects = list(concepts) if concepts is not None else declared()
-    out: list[ConceptIssue] = []
+    out: list[CoherenceIssue] = []
     for inv in registered():
         out.extend(inv.check(subjects))
     return out
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="conceptlint", description=__doc__.split("\n")[0])
+    p = argparse.ArgumentParser(prog="workflow-plan lint", description=__doc__.split("\n")[0])
     p.add_argument("--import", dest="modules", action="append", default=[],
                    help="module to import so its Concepts register (repeatable)")
     p.add_argument("--list", action="store_true", help="show the declared vocabulary and exit")
@@ -243,12 +270,12 @@ def main(argv: list[str] | None = None) -> int:
     # Ordinary Pydantic models — no base class required. This is the DEFAULT surface: every repo
     # has models long before it has declared Concepts, and requiring declarations first is the
     # "annotate your whole codebase" tax nobody pays.
-    from plan_types.invariants.naming.ambiguous_reference import AMBIGUOUS_REFERENCE
-    from plan_types.invariants.naming.naming_drift import NAMING_DRIFT
-    from plan_types.naming.records import discover_models, near_duplicates, overloaded
+    from workflow_plan.invariants.naming.ambiguous_reference import AMBIGUOUS_REFERENCE
+    from workflow_plan.invariants.naming.naming_drift import NAMING_DRIFT
+    from workflow_plan.naming.records import discover_models, near_duplicates, overloaded
 
-    # ⚠️ The finding NAMES come from the SemanticInvariant ids, never hand-written here. This CLI
-    # and `plan_types.invariants` are two surfaces on ONE engine, and until 2026-08-17 they called
+    # ⚠️ The finding NAMES come from the Invariant ids, never hand-written here. This CLI
+    # and `workflow_plan.invariants` are two surfaces on ONE engine, and until 2026-08-17 they called
     # the same two findings different things — `overloaded` vs `naming.ambiguous_reference`. A tool
     # whose pitch is "one concept, one name" shipping its own findings under two names.
     #
@@ -261,7 +288,7 @@ def main(argv: list[str] | None = None) -> int:
     found_models = discover_models(args.path)
 
     for first, second in overloaded(found_models):
-        issues.append(ConceptIssue(
+        issues.append(CoherenceIssue(
             AMBIGUOUS_REFERENCE.id,
             f"{first.name} is declared twice with different shapes",
             [f"{first.name} ({first.file}:{first.line})",
@@ -275,7 +302,7 @@ def main(argv: list[str] | None = None) -> int:
         # field list when the DOCSTRING is what says these are one concept.
         what = (f"{score:.0%} of their fields" if signal == "fields"
                 else f"{score:.0%} of their stated meaning — {first.definition!r}")
-        issues.append(ConceptIssue(
+        issues.append(CoherenceIssue(
             NAMING_DRIFT.id,
             f"{first.name} and {second.name} share a head noun and {what}",
             [f"{first.name} ({first.file}:{first.line})",
@@ -287,7 +314,7 @@ def main(argv: list[str] | None = None) -> int:
     # there is no history to compare against — "cannot tell" is not a finding.
     from conceptlint.drift import drifted
     for d in drifted(args.path, since=args.since):
-        issues.append(ConceptIssue(
+        issues.append(CoherenceIssue(
             STALE_DEFINITION,
             f"{d.name} changed shape while its docstring stayed the same",
             [f"{d.name} ({d.file}:{d.line})"],

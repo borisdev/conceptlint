@@ -6,11 +6,11 @@
 
 ⚠️ **The fan-in is the point.** The grounding step needs the DRAFT and the ORIGINAL PASTE at once —
 a model asked for a causal map will invent an intervention nobody wrote down, and the only way to
-drop those is to compare against what the patient actually said. A Step modelled as a function of
+drop those is to compare against what the patient actually said. A PlanStep modelled as a function of
 its predecessor's output cannot say this, and the earlier version of this file papered over it by
 pretending the second step consumed only the draft.
 
-Two strategies are bound to the first Step, because "ask a model for a map" is one operation with
+Two strategies are bound to the first PlanStep, because "ask a model for a map" is one operation with
 several ways to do it — that is the case the `Strategy` layer exists for, and inventing
 `AskModelForCausalMapV2` would be the naming drift this package reports.
 
@@ -23,9 +23,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from plan_types import Plan, Service, Step, Variable, render_mermaid, validate
-from plan_types.execution import LocalRunner, check_strategy, run
-from plan_types.invariants import topology, typing
+from workflow_plan import Plan, PlanDependency, PlanStep, Variable, render_mermaid, check
+from workflow_plan.execution import SequentialRunner, check_strategy, run
+from workflow_plan.invariants import topology, typing
 
 
 @dataclass(frozen=True)
@@ -43,18 +43,18 @@ draft = Variable("draft", CausalMap)
 case_graph = Variable("case_graph", CausalMap)
 
 #: What the arm needs REACHABLE, as opposed to what flows through it. Declared at the top level and
-#: referenced by name, docker-compose style: a Step reaching for an undeclared Service is refused.
-llm = Service("llm_service", kind="api", why="every arm calls a model; runs anywhere with network")
+#: referenced by name, docker-compose style: a PlanStep reaching for an undeclared PlanDependency is refused.
+llm = PlanDependency("llm_service", kind="api", why="every arm calls a model; runs anywhere with network")
 
 
-class AskModelForCausalMap(Step):
+class AskModelForCausalMap(PlanStep):
     """One call: the paste in, a whole causal map out. Nothing retrieved, nothing cited."""
 
     inputs, outputs = (plan_text,), (draft,)
     uses = (llm,)
 
 
-class DropWhatThePasteDoesNotSupport(Step):
+class DropWhatThePasteDoesNotSupport(PlanStep):
     """Remove edges the paste never mentioned. Needs the draft AND the paste."""
 
     inputs, outputs = (draft, plan_text), (case_graph,)
@@ -98,7 +98,7 @@ with_mechanism = {AskModelForCausalMap: ask_with_mechanism,
 
 
 def main() -> None:
-    print("invariants:", validate(plan, [*topology.ALL, *typing.ALL]) or "[]")
+    print("invariants:", check(plan, [*topology.ALL, *typing.ALL]) or "[]")
     print(render_mermaid(plan))
 
     paste = "Metformin and Spironolactone for PCOS, plus Inositol daily."
@@ -107,7 +107,7 @@ def main() -> None:
         problems = check_strategy(plan, strategy)
         if problems:
             raise SystemExit("\n".join(problems))
-        env = run(plan, {"plan_text": paste}, LocalRunner(strategy))
+        env = run(plan, {"plan_text": paste}, SequentialRunner(strategy))
         print(f"{arm:>14}: draft {len(env['draft'].edges)} edges -> kept {env['case_graph']}")
 
 

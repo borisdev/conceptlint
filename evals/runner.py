@@ -23,14 +23,38 @@ import pathlib
 import sys
 from dataclasses import dataclass, field
 
-from conceptlint.core.concept import Concept
-from conceptlint.core.invariant import ConceptIssue
+from workflow_plan.naming.declared_term import DeclaredTerm
+from conceptlint.core.coherence_rule import CoherenceIssue
 from conceptlint.core.lint import lint
-from plan_types.invariants.topology import NoExecutionFields, NoPrivateSynonym, PlanTimeOnly
-from conceptlint.ontologies.pplan.concepts import Activity, Entity, Plan, Step, Variable
+from workflow_plan.invariants import check
+from workflow_plan.invariants.typing.plan_time_only import PLAN_TIME_ONLY
+from workflow_plan.naming.records import discover_models
+from workflow_plan.plan import MultiStep, Plan, PlanDependency, PlanStep, Variable
 
 MINIMAL = pathlib.Path(__file__).resolve().parent / "minimal"
-SEED = [Plan, Step, Variable, Activity, Entity]
+
+#: The vocabulary every subject file is checked AGAINST. Was five toy `Concept` declarations in
+#: `conceptlint/ontologies/pplan/`; it is now the real types, which is the point of the base — a
+#: case that reuses a canonical name is measured against the name the package actually ships.
+SEED = [Plan, PlanStep, Variable, PlanDependency, MultiStep]
+
+#: eval rule name -> the rule that implements it today, or None if nothing does.
+#:
+#: ⚠️ Three of these four are None, and that is a FINDING rather than a formatting choice. This
+#: runner has not imported since `e6aa37c` ("Invariant replacing Concept"), which removed
+#: `PlanTimeOnly`, `NoExecutionFields` and `NoPrivateSynonym` — the class-based rules it called.
+#: Nothing collected it (`testpaths` includes `evals/`, but there is no `test_*.py` there), so an
+#: ImportError sat in the semantic half of the test strategy for as long as it took to notice.
+#:
+#: A case whose rule does not exist reports NOT CHECKED and FAILS. It must never report `ok`: "we
+#: did not look" and "we looked and it was fine" rendering the same is the inversion this whole
+#: package exists to prevent.
+IMPLEMENTED_BY: dict[str, str | None] = {
+    "near-duplicate": "near-duplicate",           # conceptlint.core.lint.NearDuplicate
+    "plan-time-only": "typing.plan_time_only",    # workflow_plan.invariants.typing
+    "no-private-synonym": None,                   # removed in e6aa37c, never rebuilt
+    "no-execution-fields": None,                  # removed in e6aa37c, never rebuilt
+}
 
 
 def _yaml(path: pathlib.Path) -> dict[str, object]:
@@ -50,19 +74,19 @@ def _yaml(path: pathlib.Path) -> dict[str, object]:
     return out
 
 
-def _concepts_declared_in(path: pathlib.Path) -> list[type[Concept]]:
+def _concepts_declared_in(path: pathlib.Path) -> list[type[DeclaredTerm]]:
     """Concepts the subject file declares, built from its AST — never by importing it.
 
     Importing would run the subject, and half of these files are deliberately wrong. It also lets a
     case describe code that cannot execute, which is the state a repo is in mid-conversation.
     """
     tree = ast.parse(path.read_text(encoding="utf-8"))
-    made: dict[str, type[Concept]] = {}
+    made: dict[str, type[DeclaredTerm]] = {}
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
             continue
         bases = {b.id for b in node.bases if isinstance(b, ast.Name)}
-        if "Concept" not in bases and not (bases & set(made)):
+        if "DeclaredTerm" not in bases and not (bases & set(made)):
             continue
         attrs: dict[str, object] = {"ID": "", "DEFINITION": "", "RATIONALE": "r",
                                     "REFINES": None, "ALSO_KNOWN_AS": ()}
@@ -79,12 +103,12 @@ def _concepts_declared_in(path: pathlib.Path) -> list[type[Concept]]:
                         attrs[t.id] = ast.literal_eval(stmt.value)
                     except (ValueError, SyntaxError):
                         pass
-        parent = next((made[b] for b in bases if b in made), Concept)
+        parent = next((made[b] for b in bases if b in made), DeclaredTerm)
         made[node.name] = type(node.name, (parent,), attrs)
     return list(made.values())
 
 
-def _seed_by_name(name: str) -> type[Concept] | None:
+def _seed_by_name(name: str) -> type[DeclaredTerm] | None:
     return next((c for c in SEED if c.__name__ == name), None)
 
 
@@ -108,9 +132,17 @@ def run_case(case: pathlib.Path) -> list[CaseResult]:
         issues = _lint_file(path)
         rules = {i.rule for i in issues}
         if must_flag:
-            missing = want_rules - rules
-            ok = not missing
-            detail = "" if ok else f"expected {sorted(missing)}, got {sorted(rules) or 'nothing'}"
+            # A rule nobody implements cannot be missing from the output for a reason the CODE is
+            # responsible for. Separate the two, and never let the second read as a pass.
+            unimplemented = sorted(r for r in want_rules if not IMPLEMENTED_BY.get(r))
+            live = {IMPLEMENTED_BY[r] for r in want_rules if IMPLEMENTED_BY.get(r)}
+            missing = live - rules
+            ok = not missing and not unimplemented
+            detail = ""
+            if unimplemented:
+                detail = f"NOT CHECKED — no rule implements {unimplemented}"
+            elif missing:
+                detail = f"expected {sorted(missing)}, got {sorted(rules) or 'nothing'}"
         else:
             ok = not issues
             detail = "" if ok else f"the FIX still flags {sorted(rules)}"
@@ -119,11 +151,17 @@ def run_case(case: pathlib.Path) -> list[CaseResult]:
     return out
 
 
-def _lint_file(path: pathlib.Path) -> list[ConceptIssue]:
-    concepts = SEED + _concepts_declared_in(path)
-    issues = list(lint(concepts))
-    for inv in (PlanTimeOnly([path]), NoExecutionFields([path]), NoPrivateSynonym([path])):
-        issues.extend(inv.check(concepts))
+def _lint_file(path: pathlib.Path) -> list[CoherenceIssue]:
+    """Every rule that can run against one subject file, as `CoherenceIssue`s.
+
+    Two surfaces, both required: the declared vocabulary (SEED plus whatever the file declares) for
+    the concept rules, and the file's ordinary models read off disk for the record rules. A case
+    like `variable_entity_collapse` is a plain frozen dataclass — invisible to the first surface and
+    the whole point of the second.
+    """
+    issues = list(lint(SEED + _concepts_declared_in(path)))
+    issues += [CoherenceIssue(v.invariant_id, v.message)
+               for v in check(discover_models(path), (PLAN_TIME_ONLY,))]
     return issues
 
 

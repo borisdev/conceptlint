@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from plan_types.plan import Plan, Step, Variable
+from workflow_plan.plan import Plan, PlanStep, Variable
 from conceptlint.eval import (AIEvalTrial, EvalCase, Judge, Result, Rubric, TrialError,
                               comparable, digest)
 
@@ -26,7 +26,7 @@ class Other:
 
 
 def _plan(name: str, out=Graph) -> Plan:
-    step = type(f"S{name}", (Step,), {
+    step = type(f"S{name}", (PlanStep,), {
         "inputs": (Variable("paste", Paste),), "outputs": (Variable("out", out),),
     })
     return Plan(name=name, steps=(step(),))

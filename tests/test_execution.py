@@ -1,4 +1,4 @@
-"""A Step declares; a Strategy implements; a Runner performs.
+"""A PlanStep declares; a Strategy implements; a Runner performs.
 
 Each test names the failure it would catch. The ones worth reading twice are `test_async_refused`
 and `test_examples_import` — both exist because the thing they check was silently broken and no
@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from plan_types import Plan, Step, Variable
-from plan_types.execution import (ExecutionError, LocalRunner, StepRunner, check_strategy,
+from workflow_plan import Plan, PlanStep, Variable
+from workflow_plan.execution import (ExecutionError, SequentialRunner, StepRunner, check_strategy,
                                   run)
 
 document = Variable("document", str)
@@ -17,11 +17,11 @@ outline = Variable("outline", tuple)
 summary = Variable("summary", str)
 
 
-class BuildIndex(Step):
+class BuildIndex(PlanStep):
     inputs, outputs = (document,), (outline,)
 
 
-class Condense(Step):
+class Condense(PlanStep):
     inputs, outputs = (document, outline), (summary,)
 
 
@@ -48,15 +48,15 @@ long_ = {BuildIndex: index_impl, Condense: condense_long}
 # ── the declaration carries no implementation ────────────────────────────────────────────────────
 
 def test_step_has_no_run() -> None:
-    """The removal itself. A `run` reachable on Step is one implementation privileged over peers."""
-    assert not hasattr(Step, "run")
+    """The removal itself. A `run` reachable on PlanStep is one implementation privileged over peers."""
+    assert not hasattr(PlanStep, "run")
     assert not hasattr(BuildIndex(), "run")
 
 
 def test_declaring_run_fails_at_import() -> None:
     """Retired, not merely deleted — otherwise the privileged implementation comes back silently."""
     with pytest.raises(TypeError, match="retired"):
-        class Rebel(Step):
+        class Rebel(PlanStep):
             inputs, outputs = (document,), (summary,)
 
             def run(self, **values):  # noqa: ANN001, ANN201
@@ -67,14 +67,14 @@ def test_retired_message_names_its_own_replacement() -> None:
     """The old error built its text with `'Input' if old == 'consumes' else 'Output'`, so a THIRD
     retired name would have been explained as being about hasOutputVar."""
     with pytest.raises(TypeError, match="Strategy"):
-        class Rebel2(Step):
+        class Rebel2(PlanStep):
             inputs, outputs = (document,), (summary,)
 
             def run(self, **values):  # noqa: ANN001, ANN201
                 return "x"
 
     with pytest.raises(TypeError, match="hasInputVar"):
-        class Old(Step):
+        class Old(PlanStep):
             consumes = document
 
 
@@ -82,27 +82,27 @@ def test_retired_message_names_its_own_replacement() -> None:
 
 def test_same_plan_two_strategies_differ() -> None:
     """The capability the whole change exists for: the Plan object is not touched between arms."""
-    a = run(plan, {"document": "one two three"}, LocalRunner(short))
-    b = run(plan, {"document": "one two three"}, LocalRunner(long_))
+    a = run(plan, {"document": "one two three"}, SequentialRunner(short))
+    b = run(plan, {"document": "one two three"}, SequentialRunner(long_))
     assert a["summary"] == "one"
     assert b["summary"] == "one two three"
 
 
 def test_execute_returns_intermediates_too() -> None:
-    env = run(plan, {"document": "a b"}, LocalRunner(short))
+    env = run(plan, {"document": "a b"}, SequentialRunner(short))
     assert env["outline"] == ("a", "b")
 
 
 def test_local_runner_satisfies_the_protocol_structurally() -> None:
-    """No inheritance. An adapter in another package conforms without importing plan_types."""
-    assert isinstance(LocalRunner({}), StepRunner)
+    """No inheritance. An adapter in another package conforms without importing workflow_plan."""
+    assert isinstance(SequentialRunner({}), StepRunner)
 
 
 # ── what the runner refuses, loudly ──────────────────────────────────────────────────────────────
 
 def test_missing_binding_names_the_step() -> None:
     with pytest.raises(ExecutionError, match="Condense"):
-        run(plan, {"document": "a"}, LocalRunner({BuildIndex: index_impl}))
+        run(plan, {"document": "a"}, SequentialRunner({BuildIndex: index_impl}))
 
 
 def test_async_refused() -> None:
@@ -112,56 +112,56 @@ def test_async_refused() -> None:
 
     strategy = {BuildIndex: index_impl, Condense: condense_async}
     with pytest.raises(ExecutionError, match="coroutine"):
-        run(plan, {"document": "a"}, LocalRunner(strategy))
+        run(plan, {"document": "a"}, SequentialRunner(strategy))
 
 
 def test_wrong_output_type_refused() -> None:
     strategy = {BuildIndex: index_impl, Condense: lambda document, outline: 42}
     with pytest.raises(ExecutionError, match="declares 'summary' as str"):
-        run(plan, {"document": "a"}, LocalRunner(strategy))
+        run(plan, {"document": "a"}, SequentialRunner(strategy))
 
 
 def test_multi_output_arity_refused() -> None:
     left, right = Variable("left", str), Variable("right", str)
 
-    class Split(Step):
+    class Split(PlanStep):
         inputs, outputs = (document,), (left, right)
 
     two = Plan(name="two", steps=(Split(),), declared_inputs=(document,))
     with pytest.raises(ExecutionError, match="must return a tuple of 2"):
-        run(two, {"document": "a"}, LocalRunner({Split: lambda document: "only one"}))
+        run(two, {"document": "a"}, SequentialRunner({Split: lambda document: "only one"}))
 
-    env = run(two, {"document": "a"}, LocalRunner({Split: lambda document: ("l", "r")}))
+    env = run(two, {"document": "a"}, SequentialRunner({Split: lambda document: ("l", "r")}))
     assert (env["left"], env["right"]) == ("l", "r")
 
 
 def test_output_from_a_step_declaring_none_refused() -> None:
-    class Audit(Step):
+    class Audit(PlanStep):
         inputs, outputs = (document,), ()
 
     p = Plan(name="a", steps=(Audit(),), declared_inputs=(document,))
     with pytest.raises(ExecutionError, match="declares no outputs"):
-        run(p, {"document": "a"}, LocalRunner({Audit: lambda document: "leaked"}))
+        run(p, {"document": "a"}, SequentialRunner({Audit: lambda document: "leaked"}))
 
-    assert run(p, {"document": "a"}, LocalRunner({Audit: lambda document: None})) == {
+    assert run(p, {"document": "a"}, SequentialRunner({Audit: lambda document: None})) == {
         "document": "a"}
 
 
 def test_missing_plan_input_named() -> None:
     with pytest.raises(ExecutionError, match=r"expects \['document'\]"):
-        run(plan, {}, LocalRunner(short))
+        run(plan, {}, SequentialRunner(short))
 
 
 def test_two_variables_one_name_refused() -> None:
     """A Variable is (name, type), so two can differ in type and collide in a name-keyed env."""
     same_name_other_type = Variable("outline", list)
 
-    class Other(Step):
+    class Other(PlanStep):
         inputs, outputs = (document,), (same_name_other_type,)
 
     p = Plan(name="clash", steps=(BuildIndex(), Other()), declared_inputs=(document,))
     with pytest.raises(ExecutionError, match="sharing the name"):
-        run(p, {"document": "a"}, LocalRunner({}))
+        run(p, {"document": "a"}, SequentialRunner({}))
 
 
 # ── check_strategy: static, and honest about what it cannot see ──────────────────────────────────

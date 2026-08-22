@@ -1,7 +1,7 @@
 """The layering claim, executed.
 
-`plan_types.plan` must import no execution framework, and the same Plan under the same Strategy must
-produce the same answer on `LocalRunner` and on Pydantic Graph. Both are assertions this repo makes
+`workflow_plan.plan` must import no execution framework, and the same Plan under the same Strategy must
+produce the same answer on `SequentialRunner` and on Pydantic Graph. Both are assertions this repo makes
 in prose; neither is worth anything unless something runs it.
 """
 from __future__ import annotations
@@ -12,9 +12,9 @@ import pytest
 
 pytest.importorskip("pydantic_graph", reason="optional extra: uv sync --extra pydantic-graph")
 
-from plan_types.execution import (ExecutionError, LocalRunner, check_strategy,  # noqa: E402
+from workflow_plan.execution import (ExecutionError, SequentialRunner, check_strategy,  # noqa: E402
                                   run)
-from plan_types.execution.pydantic_graph import to_pydantic_graph  # noqa: E402
+from workflow_plan.execution.pydantic_graph import to_pydantic_graph  # noqa: E402
 
 
 def test_both_runtimes_agree() -> None:
@@ -22,7 +22,7 @@ def test_both_runtimes_agree() -> None:
 
     reader = User(name="Samuel", interests=("type safety", "graphs"))
     for strategy in (terse, warm):
-        local = run(plan, {"user": reader}, LocalRunner(strategy))["email"]
+        local = run(plan, {"user": reader}, SequentialRunner(strategy))["email"]
         graph = to_pydantic_graph(plan, strategy)
         assert asyncio.run(graph.run(state={}, inputs={"user": reader}))["email"] == local
 
@@ -43,15 +43,15 @@ def test_an_incomplete_strategy_is_refused_before_the_graph_is_built() -> None:
 
 def test_a_cyclic_plan_is_refused_rather_than_linearised() -> None:
     """The case where you SHOULD use their engine, said out loud instead of faked."""
-    from plan_types import Plan, Step, Variable
-    from plan_types.plan.plan import PlanError
+    from workflow_plan import Plan, PlanStep, Variable
+    from workflow_plan.plan.plan import PlanError
 
     a, b = Variable("a", int), Variable("b", int)
 
-    class Up(Step):
+    class Up(PlanStep):
         inputs, outputs = (a,), (b,)
 
-    class Down(Step):
+    class Down(PlanStep):
         inputs, outputs = (b,), (a,)
 
     cyclic = Plan(name="loop", steps=(Up(), Down()))
@@ -63,7 +63,7 @@ def test_the_plan_layer_imports_no_execution_framework() -> None:
     """The layering claim itself. `plan/` must be readable with no engine in the room."""
     import pathlib
 
-    plan_dir = pathlib.Path(__file__).resolve().parents[1] / "plan_types" / "plan"
+    plan_dir = pathlib.Path(__file__).resolve().parents[1] / "workflow_plan" / "plan"
     for path in plan_dir.glob("*.py"):
         source = path.read_text()
         for engine in ("pydantic_graph", "temporal", "langgraph"):
@@ -88,7 +88,7 @@ def test_stage2_three_strategies_over_one_plan() -> None:
 def test_the_plan_object_is_shared_across_arms_not_copied() -> None:
     """The claim an eval depends on: arms differ ONLY in the Strategy.
 
-    Identity, not equality — a Plan rebuilt per arm could drift a Step and still compare equal
+    Identity, not equality — a Plan rebuilt per arm could drift a PlanStep and still compare equal
     under a weaker check, which is the failure `AIEvalTrial` exists to prevent.
     """
     from examples.pydantic_graph_docs.stage2_strategies import ARMS, plan
@@ -102,7 +102,7 @@ def test_the_diagrams_differ_only_in_the_implementation_labels() -> None:
     """The visual claim, checked: strip the <i> labels and the three renders are byte-identical."""
     import re
 
-    from plan_types import render_mermaid
+    from workflow_plan import render_mermaid
     from examples.pydantic_graph_docs.stage2_strategies import ARMS, plan
 
     strip = lambda t: re.sub(r"<br/><i>[^<]+</i>", "", t)  # noqa: E731
@@ -115,10 +115,10 @@ def test_stage3_and_the_control_arm_agree() -> None:
     """The comparison is only worth reading if both arms compute the same thing."""
     from examples.pydantic_graph_docs import control_no_plan as ctrl
     from examples.pydantic_graph_docs import stage3_map_join as s3
-    from plan_types.execution import LocalRunner, run
+    from workflow_plan.execution import SequentialRunner, run
 
     for case in s3.CORPUS:
-        with_plan = [run(s3.plan, {"numbers": case}, LocalRunner(a))["total"]
+        with_plan = [run(s3.plan, {"numbers": case}, SequentialRunner(a))["total"]
                      for a in s3.ARMS.values()]
         control = [asyncio.run(ctrl.build(impl).run(inputs=case))
                    for impl in ctrl.ARMS.values()]
@@ -135,11 +135,11 @@ def test_a_mapped_step_gives_their_documented_answer() -> None:
     """Their docs print `Results: [1, 4, 9, 16, 25]`. Both our runtimes must too — and the
     compiled one gets there through their real `.map()` and join, not a loop wearing the name."""
     from examples.pydantic_graph_docs.stage3_map_join import ARMS, plan
-    from plan_types.execution import LocalRunner, run
-    from plan_types.execution.pydantic_graph import to_pydantic_graph
+    from workflow_plan.execution import SequentialRunner, run
+    from workflow_plan.execution.pydantic_graph import to_pydantic_graph
 
     case = {"numbers": [1, 2, 3, 4, 5]}
-    assert run(plan, case, LocalRunner(ARMS["exact"]))["squares"] == [1, 4, 9, 16, 25]
+    assert run(plan, case, SequentialRunner(ARMS["exact"]))["squares"] == [1, 4, 9, 16, 25]
     compiled = asyncio.run(to_pydantic_graph(plan, ARMS["exact"]).run(state={}, inputs=case))
     assert compiled["squares"] == [1, 4, 9, 16, 25]
 
@@ -151,11 +151,11 @@ def test_a_mapped_step_is_an_ordinary_node_to_every_invariant() -> None:
     Variable must never surface as a Plan port, or every topology rule would need to learn about
     mapping and they would each learn it slightly differently.
     """
-    from plan_types import validate
-    from plan_types.invariants import topology, typing as typing_inv
+    from workflow_plan import check
+    from workflow_plan.invariants import topology, typing as typing_inv
     from examples.pydantic_graph_docs.stage3_map_join import numbers, plan, squares
 
-    assert validate(plan, [*topology.ALL, *typing_inv.ALL]) == []
+    assert check(plan, [*topology.ALL, *typing_inv.ALL]) == []
     assert [v.name for v in plan.inputs] == ["numbers"]
     assert numbers in plan.variables and squares in plan.variables
     assert "number" not in [v.name for v in plan.variables], "the ITEM is not a Plan port"
@@ -163,18 +163,39 @@ def test_a_mapped_step_is_an_ordinary_node_to_every_invariant() -> None:
 
 def test_a_mapped_step_must_be_the_per_item_operation() -> None:
     """A mapped fan-in has no meaning: there is no second list to zip against."""
-    from plan_types import Step, Variable
+    from workflow_plan import PlanStep, Variable
 
     xs, x, y, ys = (Variable("xs", list), Variable("x", int),
                     Variable("y", int), Variable("ys", list))
     other = Variable("other", int)
 
     with pytest.raises(TypeError, match="exactly one input"):
-        class TwoIn(Step):
+        class TwoIn(PlanStep):
             inputs, outputs = (x, other), (y,)
             map_over = (xs, ys)
 
     with pytest.raises(TypeError, match="names the LIST"):
-        class Confused(Step):
+        class Confused(PlanStep):
             inputs, outputs = (xs,), (y,)
             map_over = (xs, ys)
+
+
+def test_the_hand_written_wrapper_and_the_plan_run_the_same_function() -> None:
+    """The README's LEAD integration, so it cannot be copy that nothing executes.
+
+    ⚠️ This is the claim, and it is not "the numbers happen to match": both callers look the
+    implementation up in the same `Strategy`, so there is one function and two call sites. A test
+    that only asserted `2 == 2` would still pass if the node body were reimplemented by hand, which
+    is the drift the whole arrangement exists to prevent.
+    """
+    from examples.pydantic_graph_docs.hand_written_wrapper import hand_written
+    from examples.pydantic_graph_docs.stage1_counter import DoubleIt, plan, strategy
+
+    theirs = asyncio.run(hand_written())
+    ours = run(plan, {}, SequentialRunner(strategy))["doubled"]
+    assert theirs == ours == 2
+
+    # Rebind ONE step and both sides must move together. If they do not, the node body is its own
+    # implementation and the Plan is decoration.
+    rebound = {**strategy, DoubleIt: lambda count: count * 10}
+    assert run(plan, {}, SequentialRunner(rebound))["doubled"] == 10

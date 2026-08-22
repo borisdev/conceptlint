@@ -10,21 +10,21 @@ from typing import ClassVar
 
 import pytest
 
-from conceptlint.core.concept import Concept
-from conceptlint.core.invariant import ConceptIssue, Invariant, registered, validate
+from workflow_plan.naming.declared_term import DeclaredTerm
+from conceptlint.core.coherence_rule import CoherenceIssue, CoherenceRule, registered, validate
 from conceptlint.core.lint import (Ambiguity, CanonicalReuse, ExplicitRefinement, NearDuplicate,
-                                   words)
+                                   head, words)
 
 
-def _c(name: str, *, id: str = "", definition: str = "d", refines=None, aka=()) -> type[Concept]:
-    """A throwaway Concept. Declared locally so the module registry stays untouched."""
-    return type(name, (Concept,), {
+def _c(name: str, *, id: str = "", definition: str = "d", refines=None, aka=()) -> type[DeclaredTerm]:
+    """A throwaway DeclaredTerm. Declared locally so the module registry stays untouched."""
+    return type(name, (DeclaredTerm,), {
         "ID": id or name.lower(), "DEFINITION": definition,
         "RATIONALE": "r", "REFINES": refines, "ALSO_KNOWN_AS": tuple(aka),
     })
 
 
-def _rules(inv: Invariant, *concepts: type[Concept]) -> list[ConceptIssue]:
+def _rules(inv: CoherenceRule, *concepts: type[DeclaredTerm]) -> list[CoherenceIssue]:
     return list(inv.check(list(concepts)))
 
 
@@ -70,9 +70,9 @@ def test_declaring_the_refinement_silences_it() -> None:
 
 
 def test_a_private_synonym_of_a_declared_alias_is_caught() -> None:
-    step = _c("Step", aka=("DataFlowNode",))
+    step = _c("PlanStep", aka=("DataFlowNode",))
     issues = _rules(CanonicalReuse(), _c("DataFlowNode"), step)
-    assert issues and "Step" in issues[0].suggestion
+    assert issues and "PlanStep" in issues[0].suggestion
 
 
 def test_two_names_circling_one_meaning_is_a_near_duplicate() -> None:
@@ -121,14 +121,52 @@ def test_a_genuine_refinement_passes() -> None:
 
 def test_an_invariant_with_no_check_is_refused() -> None:
     """It would register, run, find nothing, and read exactly like a rule that passed."""
-    hollow = type("Hollow", (Invariant,), {"ID": "hollow", "LAW": "one-concept-one-meaning",
+    hollow = type("Hollow", (CoherenceRule,), {"ID": "hollow", "LAW": "one-concept-one-meaning",
                                            "WHY": "w"})
     with pytest.raises(TypeError, match="does not implement check"):
         validate(hollow)
 
 
 def test_an_invariant_with_no_stated_failure_is_refused() -> None:
-    vague = type("Vague", (Invariant,), {"ID": "vague", "LAW": "one-concept-one-meaning",
+    vague = type("Vague", (CoherenceRule,), {"ID": "vague", "LAW": "one-concept-one-meaning",
                                          "check": lambda self, c: []})
     with pytest.raises(TypeError, match="missing WHY"):
         validate(vague)
+
+
+# ── head nouns, not substrings ───────────────────────────────────────────────────────────────────
+#
+# Added 2026-08-22, when both rules were pointed at this package's own vocabulary for the first time
+# and reported `PlanStep` as circling `Plan`. The offered fix — `REFINES = Plan` — would have been
+# false. English compounds are head-final; the qualifier narrows and the head says what it IS.
+
+def test_the_head_noun_is_the_last_word() -> None:
+    assert head("ClinicalFinding") == "finding"
+    assert head("PlanStep") == "step"
+    assert head("Plan") == "plan"
+    assert head("AIEvalTrial") == "trial"
+
+
+def test_a_qualifier_that_is_a_canonical_name_is_not_reuse() -> None:
+    """⚠️ `PlanStep` IS a Step. It is not a kind of Plan, and no REFINES could say otherwise."""
+    plan, step = _c("Plan"), _c("PlanStep")
+    assert _rules(CanonicalReuse(), plan, step) == []
+    assert _rules(NearDuplicate(), plan, step) == []
+
+
+def test_sharing_only_a_qualifier_is_not_a_near_duplicate() -> None:
+    """`PlanStep` and `PlanDependency` share `plan` and are a step and a service."""
+    assert _rules(NearDuplicate(), _c("PlanStep"), _c("PlanDependency")) == []
+
+
+def test_the_head_noun_rule_still_catches_what_it_exists_for() -> None:
+    """The guard on the guard: relaxing the test must not relax it into silence.
+
+    `evals/minimal/sibling_refinement` asserts the same thing end to end. Both are kept — this one
+    fails at the unit, that one fails at the documented behaviour.
+    """
+    issues = _rules(NearDuplicate(), _c("EvidenceFinding"), _c("ResearchFinding"))
+    assert issues, "the rule's own worked example stopped firing"
+
+    canonical = _rules(CanonicalReuse(), _c("Finding"), _c("ResearchFinding"))
+    assert canonical, "a head-noun reuse of a canonical name stopped firing"
