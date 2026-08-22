@@ -24,7 +24,7 @@ import sys
 from dataclasses import dataclass, field
 
 from workflow_plan.naming.declared_term import DeclaredTerm
-from conceptlint.core.invariant import ConceptIssue
+from conceptlint.core.concept_rule import ConceptIssue
 from conceptlint.core.lint import lint
 from workflow_plan.invariants import check
 from workflow_plan.invariants.typing.plan_time_only import PLAN_TIME_ONLY
@@ -41,7 +41,7 @@ SEED = [Plan, PlanStep, Variable, PlanDependency, MultiStep]
 #: eval rule name -> the rule that implements it today, or None if nothing does.
 #:
 #: ⚠️ Three of these four are None, and that is a FINDING rather than a formatting choice. This
-#: runner has not imported since `e6aa37c` ("SemanticInvariant replacing Concept"), which removed
+#: runner has not imported since `e6aa37c` ("Invariant replacing Concept"), which removed
 #: `PlanTimeOnly`, `NoExecutionFields` and `NoPrivateSynonym` — the class-based rules it called.
 #: Nothing collected it (`testpaths` includes `evals/`, but there is no `test_*.py` there), so an
 #: ImportError sat in the semantic half of the test strategy for as long as it took to notice.

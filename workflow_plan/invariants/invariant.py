@@ -1,6 +1,6 @@
-"""`SemanticInvariant` — a rule that can fail, and say why.
+"""`Invariant` — a rule that can fail, and say why.
 
-    DeclaredTerm  ->  generalized by  ->  SemanticInvariant
+    DeclaredTerm  ->  generalized by  ->  Invariant
 
 `DeclaredTerm` is a *type* you inherit from to declare a term. Requiring it of a whole codebase
 before anything can be checked is a tax nobody pays, so it is not required of one: the more general
@@ -64,10 +64,10 @@ class Violation(Exception):
 
 
 @dataclass(frozen=True)
-class SemanticInvariant(Generic[T]):
+class Invariant(Generic[T]):
     """One rule about a subject of type `T`.
 
-    Frozen and generic: `SemanticInvariant[Plan]` and `SemanticInvariant[Sequence[ModelRecord]]`
+    Frozen and generic: `Invariant[Plan]` and `Invariant[Sequence[ModelRecord]]`
     are the same abstraction over different subjects, which is what stops naming rules and topology
     rules needing separate machinery.
     """
@@ -84,7 +84,7 @@ class SemanticInvariant(Generic[T]):
     def __post_init__(self) -> None:
         for name in ("id", "statement"):
             if not getattr(self, name):
-                raise ValueError(f"SemanticInvariant needs a non-empty {name}")
+                raise ValueError(f"Invariant needs a non-empty {name}")
         if not callable(self.check):
             raise TypeError(
                 f"{self.id}: `check` must be callable. A rule that cannot run is a preference, and "
@@ -103,7 +103,7 @@ class SemanticInvariant(Generic[T]):
         return True
 
 
-def check(subject: T, invariants: Iterable[SemanticInvariant[T]]) -> list[Violation]:
+def check(subject: T, invariants: Iterable[Invariant[T]]) -> list[Violation]:
     """Run every invariant and COLLECT the failures rather than stopping at the first.
 
     ⚠️ Deliberately not fail-fast. One cycle can cause three violations, and seeing all three is how

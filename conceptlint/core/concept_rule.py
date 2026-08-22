@@ -1,7 +1,7 @@
-"""`Invariant` — a semantic rule that RUNS, and `ConceptIssue` — what it reports.
+"""`ConceptRule` — a semantic rule that RUNS, and `ConceptIssue` — what it reports.
 
 A rule that cannot execute is a preference. This module exists so the difference is structural
-rather than a matter of intent: an `Invariant` without a working `check()` fails registration, so
+rather than a matter of intent: an `ConceptRule` without a working `check()` fails registration, so
 "we decided X" and "X is enforced" cannot be confused.
 
 ⚠️ `check()` returns issues; it does not raise and it does not print. A rule that decides how to
@@ -43,7 +43,7 @@ class ConceptIssue:
         return "\n".join(lines)
 
 
-class Invariant:
+class ConceptRule:
     """A semantic rule over the declared concepts.
 
     Subclassing registers it, same as `DeclaredTerm`. `LAW` says which of the two laws it serves, so a
@@ -58,7 +58,7 @@ class Invariant:
         raise NotImplementedError
 
 
-def validate(cls: type[Invariant]) -> None:
+def validate(cls: type[ConceptRule]) -> None:
     """Refuse a rule that cannot report. Split out so a test can check ONE class.
 
     ⚠️ It was inline in `registered()`, and two tests each leaked a bad subclass into the global
@@ -70,24 +70,24 @@ def validate(cls: type[Invariant]) -> None:
     if missing:
         raise TypeError(f"{cls.__name__} is missing {', '.join(missing)}. "
                         f"A rule with no stated law and no stated failure is a preference.")
-    if cls.check is Invariant.check:
+    if cls.check is ConceptRule.check:
         raise TypeError(f"{cls.__name__} does not implement check(). A rule that cannot run "
                         f"reports nothing and is indistinguishable from a rule that passed.")
 
 
-def registered() -> list[Invariant]:
-    """Every Invariant subclass, instantiated, in a stable order.
+def registered() -> list[ConceptRule]:
+    """Every ConceptRule subclass, instantiated, in a stable order.
 
     ⚠️ Refuses one that does not declare `ID`, `LAW`, `WHY`, or does not override `check`. A rule
     with no `check` would register, run, find nothing, and read exactly like a rule that passed —
     which is the failure mode this module was written to make impossible.
     """
-    out: list[Invariant] = []
-    stack = [Invariant]
+    out: list[ConceptRule] = []
+    stack = [ConceptRule]
     while stack:
         cls = stack.pop()
         stack.extend(cls.__subclasses__())
-        if cls is Invariant:
+        if cls is ConceptRule:
             continue
         validate(cls)
         out.append(cls())

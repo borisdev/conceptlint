@@ -203,7 +203,7 @@ def test_we_model_multistep():
     assert hasattr(MultiStep, "decomposed_as_plan"), "p-plan:isDecomposedAsPlan"
 
 
-# --- the invariant, ported to SemanticInvariant --------------------------------------------------
+# --- the invariant, ported to Invariant --------------------------------------------------
 
 
 def test_grounded_citation_reports_a_term_that_does_not_exist():

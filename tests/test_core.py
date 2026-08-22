@@ -11,7 +11,7 @@ from typing import ClassVar
 import pytest
 
 from workflow_plan.naming.declared_term import DeclaredTerm
-from conceptlint.core.invariant import ConceptIssue, Invariant, registered, validate
+from conceptlint.core.concept_rule import ConceptIssue, ConceptRule, registered, validate
 from conceptlint.core.lint import (Ambiguity, CanonicalReuse, ExplicitRefinement, NearDuplicate,
                                    head, words)
 
@@ -24,7 +24,7 @@ def _c(name: str, *, id: str = "", definition: str = "d", refines=None, aka=()) 
     })
 
 
-def _rules(inv: Invariant, *concepts: type[DeclaredTerm]) -> list[ConceptIssue]:
+def _rules(inv: ConceptRule, *concepts: type[DeclaredTerm]) -> list[ConceptIssue]:
     return list(inv.check(list(concepts)))
 
 
@@ -121,14 +121,14 @@ def test_a_genuine_refinement_passes() -> None:
 
 def test_an_invariant_with_no_check_is_refused() -> None:
     """It would register, run, find nothing, and read exactly like a rule that passed."""
-    hollow = type("Hollow", (Invariant,), {"ID": "hollow", "LAW": "one-concept-one-meaning",
+    hollow = type("Hollow", (ConceptRule,), {"ID": "hollow", "LAW": "one-concept-one-meaning",
                                            "WHY": "w"})
     with pytest.raises(TypeError, match="does not implement check"):
         validate(hollow)
 
 
 def test_an_invariant_with_no_stated_failure_is_refused() -> None:
-    vague = type("Vague", (Invariant,), {"ID": "vague", "LAW": "one-concept-one-meaning",
+    vague = type("Vague", (ConceptRule,), {"ID": "vague", "LAW": "one-concept-one-meaning",
                                          "check": lambda self, c: []})
     with pytest.raises(TypeError, match="missing WHY"):
         validate(vague)

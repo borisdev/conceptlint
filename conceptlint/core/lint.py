@@ -23,7 +23,7 @@ import sys
 from typing import Iterable, Sequence
 
 from workflow_plan.naming.declared_term import DeclaredTerm, declared
-from conceptlint.core.invariant import ConceptIssue, Invariant, registered
+from conceptlint.core.concept_rule import ConceptIssue, ConceptRule, registered
 _WORD = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
 
 
@@ -73,7 +73,7 @@ def _related(a: type[DeclaredTerm], b: type[DeclaredTerm]) -> bool:
     return b in up_a or a in up_b or bool(set(up_a) & set(up_b))
 
 
-class Ambiguity(Invariant):
+class Ambiguity(ConceptRule):
     """One term, two meanings."""
 
     ID = "ambiguity"
@@ -109,7 +109,7 @@ class Ambiguity(Invariant):
                             "drop the alias, or rename one — the word cannot mean both")
 
 
-class CanonicalReuse(Invariant):
+class CanonicalReuse(ConceptRule):
     """A new name for a meaning that already has one."""
 
     ID = "canonical-reuse"
@@ -146,7 +146,7 @@ class CanonicalReuse(Invariant):
                         f"use {other.__name__} — that meaning already has a canonical concept")
 
 
-class NearDuplicate(Invariant):
+class NearDuplicate(ConceptRule):
     """Two names circling one meaning, neither containing the other."""
 
     ID = "near-duplicate"
@@ -183,7 +183,7 @@ class NearDuplicate(Invariant):
                     "distinction explicit in their definitions")
 
 
-class ExplicitRefinement(Invariant):
+class ExplicitRefinement(ConceptRule):
     """A declared narrowing that does not narrow anything."""
 
     ID = "explicit-refinement"
@@ -274,7 +274,7 @@ def main(argv: list[str] | None = None) -> int:
     from workflow_plan.invariants.naming.naming_drift import NAMING_DRIFT
     from workflow_plan.naming.records import discover_models, near_duplicates, overloaded
 
-    # ⚠️ The finding NAMES come from the SemanticInvariant ids, never hand-written here. This CLI
+    # ⚠️ The finding NAMES come from the Invariant ids, never hand-written here. This CLI
     # and `workflow_plan.invariants` are two surfaces on ONE engine, and until 2026-08-17 they called
     # the same two findings different things — `overloaded` vs `naming.ambiguous_reference`. A tool
     # whose pitch is "one concept, one name" shipping its own findings under two names.

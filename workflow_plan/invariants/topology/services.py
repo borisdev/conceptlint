@@ -9,7 +9,7 @@ mandatory rather than conventional.
 """
 from __future__ import annotations
 
-from workflow_plan.invariants.invariant import InvariantCategory, SemanticInvariant
+from workflow_plan.invariants.invariant import InvariantCategory, Invariant
 from workflow_plan.plan.plan import Plan
 
 
@@ -24,7 +24,7 @@ def _declared(plan: Plan) -> None:
         f"mean three things — which is the failure this rule exists to make impossible.")
 
 
-DECLARED_SERVICES: SemanticInvariant[Plan] = SemanticInvariant(
+DECLARED_SERVICES: Invariant[Plan] = Invariant(
     id="topology.declared_services",
     category=InvariantCategory.TOPOLOGY,
     statement="Every PlanDependency a PlanStep uses is declared in its Plan's `services`.",
@@ -48,7 +48,7 @@ def _no_orphans(plan: Plan) -> None:
         f"makes a deployment decision on evidence that is not there.")
 
 
-NO_ORPHAN_SERVICES: SemanticInvariant[Plan] = SemanticInvariant(
+NO_ORPHAN_SERVICES: Invariant[Plan] = Invariant(
     id="topology.no_orphan_services",
     category=InvariantCategory.TOPOLOGY,
     statement="Every declared PlanDependency is used by at least one PlanStep.",
@@ -59,4 +59,4 @@ NO_ORPHAN_SERVICES: SemanticInvariant[Plan] = SemanticInvariant(
     check=_no_orphans,
 )
 
-ALL: tuple[SemanticInvariant[Plan], ...] = (DECLARED_SERVICES, NO_ORPHAN_SERVICES)
+ALL: tuple[Invariant[Plan], ...] = (DECLARED_SERVICES, NO_ORPHAN_SERVICES)

@@ -40,7 +40,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from workflow_plan.invariants.invariant import InvariantCategory, SemanticInvariant
+from workflow_plan.invariants.invariant import InvariantCategory, Invariant
 from workflow_plan.ontology.prov import Activity
 
 #: Seconds of disagreement tolerated before the clocks are reported as having diverged. Generous on
@@ -79,7 +79,7 @@ def _measured_not_reconstructed(activities: Sequence[Activity]) -> None:
               "believe depends on deploy history this rule cannot see.")
 
 
-MEASURED_DURATION: SemanticInvariant[Sequence[Activity]] = SemanticInvariant(
+MEASURED_DURATION: Invariant[Sequence[Activity]] = Invariant(
     id="provenance.measured_duration",
     category=InvariantCategory.PROVENANCE,
     statement="Activity.duration_secs is measured from a monotonic clock, never reconstructed "
@@ -91,4 +91,4 @@ MEASURED_DURATION: SemanticInvariant[Sequence[Activity]] = SemanticInvariant(
     check=_measured_not_reconstructed,
 )
 
-ALL: tuple[SemanticInvariant[Sequence[Activity]], ...] = (MEASURED_DURATION,)
+ALL: tuple[Invariant[Sequence[Activity]], ...] = (MEASURED_DURATION,)

@@ -172,7 +172,7 @@ def test_unparseable_source_does_not_stop_the_scan(tmp_path: pathlib.Path) -> No
 def test_fields_from_a_shared_base_do_not_count(tmp_path: pathlib.Path) -> None:
     """Found on a real codebase, not imagined.
 
-    Two `Invariant` subclasses — genuinely different rules — scored 100% because `id`, `refines`
+    Two `ConceptRule` subclasses — genuinely different rules — scored 100% because `id`, `refines`
     and `scope` all come from the base. Counting inherited fields flags every pair of siblings
     under any base class, forever.
     """

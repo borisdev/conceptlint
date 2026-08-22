@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from workflow_plan.invariants.invariant import InvariantCategory, SemanticInvariant
+from workflow_plan.invariants.invariant import InvariantCategory, Invariant
 from workflow_plan.naming.records import ModelRecord, overloaded
 
 
@@ -42,7 +42,7 @@ def _unambiguous(models: Sequence[ModelRecord]) -> None:
         f"Rename one, or merge them.")
 
 
-AMBIGUOUS_REFERENCE: SemanticInvariant[Sequence[ModelRecord]] = SemanticInvariant(
+AMBIGUOUS_REFERENCE: Invariant[Sequence[ModelRecord]] = Invariant(
     id="naming.ambiguous_reference",
     category=InvariantCategory.NAMING,
     statement="A reference to code must not be ambiguous — one name names one concept.",

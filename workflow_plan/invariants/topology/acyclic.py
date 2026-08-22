@@ -10,7 +10,7 @@ itself has no acyclicity axiom, only a transitive `isPrecededBy`.
 """
 from __future__ import annotations
 
-from workflow_plan.invariants.invariant import InvariantCategory, SemanticInvariant
+from workflow_plan.invariants.invariant import InvariantCategory, Invariant
 from workflow_plan.plan import bindings
 from workflow_plan.plan.plan import Plan, PlanError
 
@@ -22,7 +22,7 @@ def _acyclic(plan: Plan) -> None:
         raise ACYCLIC.violated(str(exc)) from None
 
 
-ACYCLIC: SemanticInvariant[Plan] = SemanticInvariant(
+ACYCLIC: Invariant[Plan] = Invariant(
     id="topology.acyclic",
     category=InvariantCategory.TOPOLOGY,
     statement="The Plan's bindings contain no dependency cycle, so its Steps can be linearised.",
@@ -56,7 +56,7 @@ def _bound_inputs(plan: Plan) -> None:
             f"should produce them, or they belong in the Plan's own inputs.")
 
 
-BOUND_INPUTS: SemanticInvariant[Plan] = SemanticInvariant(
+BOUND_INPUTS: Invariant[Plan] = Invariant(
     id="topology.bound_inputs",
     category=InvariantCategory.TOPOLOGY,
     statement="Every PlanStep input is either produced inside the Plan or is a Plan input.",
@@ -77,7 +77,7 @@ def _no_orphans(plan: Plan) -> None:
             f"consume it, or the PlanStep should not be producing it.")
 
 
-NO_ORPHAN_VARIABLES: SemanticInvariant[Plan] = SemanticInvariant(
+NO_ORPHAN_VARIABLES: Invariant[Plan] = Invariant(
     id="topology.orphan_variables",
     category=InvariantCategory.TOPOLOGY,
     statement="Every produced Variable is consumed by a PlanStep or exposed as a Plan output.",
@@ -99,7 +99,7 @@ def _single_producer(plan: Plan) -> None:
             f"Variable — so two make lineage ambiguous rather than merely redundant.")
 
 
-SINGLE_PRODUCER: SemanticInvariant[Plan] = SemanticInvariant(
+SINGLE_PRODUCER: Invariant[Plan] = Invariant(
     id="topology.single_producer",
     category=InvariantCategory.TOPOLOGY,
     statement="Each Variable is produced by exactly one PlanStep.",
@@ -111,6 +111,6 @@ SINGLE_PRODUCER: SemanticInvariant[Plan] = SemanticInvariant(
 )
 
 #: Every topology rule, for callers who want the whole category.
-ALL: tuple[SemanticInvariant[Plan], ...] = (
+ALL: tuple[Invariant[Plan], ...] = (
     ACYCLIC, BOUND_INPUTS, NO_ORPHAN_VARIABLES, SINGLE_PRODUCER,
 )

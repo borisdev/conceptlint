@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from workflow_plan.invariants.invariant import InvariantCategory, SemanticInvariant
+from workflow_plan.invariants.invariant import InvariantCategory, Invariant
 from workflow_plan.naming.records import ModelRecord, near_duplicates
 
 
@@ -44,7 +44,7 @@ def _no_drift(models: Sequence[ModelRecord]) -> None:
         f"Reuse one, declare the refinement by inheritance, or state the distinction.")
 
 
-NAMING_DRIFT: SemanticInvariant[Sequence[ModelRecord]] = SemanticInvariant(
+NAMING_DRIFT: Invariant[Sequence[ModelRecord]] = Invariant(
     id="naming.naming_drift",
     category=InvariantCategory.NAMING,
     statement="The same code concept must not be referred to by multiple names.",

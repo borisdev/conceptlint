@@ -246,7 +246,7 @@ validates and renders with nothing implemented.
 
 ## Invariants
 
-`check(plan, invariants)` runs a list of `SemanticInvariant`s and returns a list of `Violation`s
+`check(plan, invariants)` runs a list of `Invariant`s and returns a list of `Violation`s
 rather than raising on the first.
 
 | category | checks |

@@ -1,6 +1,6 @@
 """A plan-time type must not carry runtime execution state.
 
-The handoff's worked example, expressed as a `SemanticInvariant` over records read from ordinary
+The handoff's worked example, expressed as an `Invariant` over records read from ordinary
 Pydantic rather than as a rule over `DeclaredTerm` subclasses — so it fires on a user's models,
 which is where the Variable/Entity collapse actually happens.
 
@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from workflow_plan.invariants.invariant import InvariantCategory, SemanticInvariant
+from workflow_plan.invariants.invariant import InvariantCategory, Invariant
 from workflow_plan.naming.records import ModelRecord
 
 #: Field names that describe an EXECUTION rather than a specification.
@@ -69,7 +69,7 @@ def _plan_time_only(models: Sequence[ModelRecord]) -> None:
             "Entity) and leave the specification describing what is INTENDED.")
 
 
-PLAN_TIME_ONLY: SemanticInvariant[Sequence[ModelRecord]] = SemanticInvariant(
+PLAN_TIME_ONLY: Invariant[Sequence[ModelRecord]] = Invariant(
     id="typing.plan_time_only",
     category=InvariantCategory.TYPING,
     statement="A plan-time type (Plan, PlanStep, Variable) must not carry runtime execution state.",
@@ -79,4 +79,4 @@ PLAN_TIME_ONLY: SemanticInvariant[Sequence[ModelRecord]] = SemanticInvariant(
     check=_plan_time_only,
 )
 
-ALL: tuple[SemanticInvariant[Sequence[ModelRecord]], ...] = (PLAN_TIME_ONLY,)
+ALL: tuple[Invariant[Sequence[ModelRecord]], ...] = (PLAN_TIME_ONLY,)

@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from workflow_plan.invariants.invariant import InvariantCategory, SemanticInvariant
+from workflow_plan.invariants.invariant import InvariantCategory, Invariant
 from workflow_plan.plan.plan import Plan
 from workflow_plan.plan.variable import Variable
 
@@ -37,7 +37,7 @@ def _compatible(plan: Plan) -> None:
         f"nothing flows between them, and the PlanStep that expected a value gets none.")
 
 
-COMPATIBLE_BINDINGS: SemanticInvariant[Plan] = SemanticInvariant(
+COMPATIBLE_BINDINGS: Invariant[Plan] = Invariant(
     id="typing.compatible_bindings",
     category=InvariantCategory.TYPING,
     statement="No two Variables in a Plan share a name while carrying different types.",
@@ -62,7 +62,7 @@ def _declared_shapes_line_up(plan: Plan) -> None:
         raise DECLARED_SHAPES.violated("; ".join(bad))
 
 
-DECLARED_SHAPES: SemanticInvariant[Plan] = SemanticInvariant(
+DECLARED_SHAPES: Invariant[Plan] = Invariant(
     id="typing.declared_shapes",
     category=InvariantCategory.TYPING,
     statement="No PlanStep declares the same Variable name twice on one side.",
@@ -72,4 +72,4 @@ DECLARED_SHAPES: SemanticInvariant[Plan] = SemanticInvariant(
     check=_declared_shapes_line_up,
 )
 
-ALL: tuple[SemanticInvariant[Plan], ...] = (COMPATIBLE_BINDINGS, DECLARED_SHAPES)
+ALL: tuple[Invariant[Plan], ...] = (COMPATIBLE_BINDINGS, DECLARED_SHAPES)

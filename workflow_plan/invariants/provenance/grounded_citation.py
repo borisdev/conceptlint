@@ -27,7 +27,7 @@ import pathlib
 import re
 from typing import Sequence
 
-from workflow_plan.invariants.invariant import InvariantCategory, SemanticInvariant
+from workflow_plan.invariants.invariant import InvariantCategory, Invariant
 from workflow_plan.naming.records import ModelRecord
 
 VENDORED = pathlib.Path(__file__).resolve().parents[2] / "ontology" / "vendored"
@@ -85,7 +85,7 @@ def _grounded(models: Sequence[ModelRecord]) -> None:
         raise GROUNDED_CITATION.violated("; ".join(problems))
 
 
-GROUNDED_CITATION: SemanticInvariant[Sequence[ModelRecord]] = SemanticInvariant(
+GROUNDED_CITATION: Invariant[Sequence[ModelRecord]] = Invariant(
     id="provenance.grounded_citation",
     category=InvariantCategory.PROVENANCE,
     statement="Every ONTOLOGY_IRI names a term that exists in an ontology vendored in this repo.",
@@ -96,4 +96,4 @@ GROUNDED_CITATION: SemanticInvariant[Sequence[ModelRecord]] = SemanticInvariant(
     check=_grounded,
 )
 
-ALL: tuple[SemanticInvariant[Sequence[ModelRecord]], ...] = (GROUNDED_CITATION,)
+ALL: tuple[Invariant[Sequence[ModelRecord]], ...] = (GROUNDED_CITATION,)
